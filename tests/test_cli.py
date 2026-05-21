@@ -51,3 +51,33 @@ def test_ingest_uses_path_relative_to_root(tmp_path):
     from dks.block import parse_markdown
     parsed = parse_markdown(files[0].read_text())
     assert parsed.source_file == "policies/claims.md"
+
+
+def test_blocks_list_after_ingest(tmp_path):
+    source = tmp_path / "notes.md"
+    source.write_text("First line.\n\nSecond paragraph.\n")
+    output = tmp_path / "out"
+    runner.invoke(app, ["ingest", str(source), "--output-dir", str(output)])
+
+    result = runner.invoke(app, ["blocks", "list", "notes.md", "--normalized-dir", str(output)])
+    assert result.exit_code == 0, result.output
+    ids = result.output.strip().splitlines()
+    assert len(ids) == 2
+
+
+def test_blocks_get_after_ingest(tmp_path):
+    source = tmp_path / "notes.md"
+    source.write_text("First line.\n")
+    output = tmp_path / "out"
+    runner.invoke(app, ["ingest", str(source), "--output-dir", str(output)])
+
+    result = runner.invoke(app, ["blocks", "get", "notes.md#L1-1", "--normalized-dir", str(output)])
+    assert result.exit_code == 0, result.output
+    assert "First line." in result.output
+
+
+def test_blocks_get_missing_returns_nonzero(tmp_path):
+    result = runner.invoke(
+        app, ["blocks", "get", "absent.md#L1-1", "--normalized-dir", str(tmp_path)]
+    )
+    assert result.exit_code != 0

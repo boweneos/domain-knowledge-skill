@@ -6,6 +6,7 @@ import typer
 
 from dks.normalizer import normalize
 from dks.parsers import get_parser
+from dks.store.blocks import get_block, list_blocks
 from dks.writer import write_blocks
 
 app = typer.Typer(no_args_is_help=True)
@@ -14,6 +15,39 @@ app = typer.Typer(no_args_is_help=True)
 @app.callback()
 def main() -> None:
     """dks — domain knowledge skill CLI."""
+
+
+blocks_app = typer.Typer(no_args_is_help=True, help="Inspect normalized blocks.")
+app.add_typer(blocks_app, name="blocks")
+
+
+@blocks_app.command("list")
+def blocks_list(
+    source_file: str = typer.Argument(..., help="Source file (relative to root)."),  # noqa: B008
+    normalized_dir: Path = typer.Option(  # noqa: B008
+        Path("normalized"), "--normalized-dir", "-n"
+    ),
+) -> None:
+    """List block_ids for a source file."""
+    ids = list_blocks(normalized_dir=normalized_dir, source_file=source_file)
+    for bid in ids:
+        typer.echo(bid)
+
+
+@blocks_app.command("get")
+def blocks_get(
+    block_id: str = typer.Argument(..., help="The block_id to fetch."),  # noqa: B008
+    normalized_dir: Path = typer.Option(  # noqa: B008
+        Path("normalized"), "--normalized-dir", "-n"
+    ),
+) -> None:
+    """Print the normalized block (JSON) for a block_id."""
+    try:
+        block = get_block(normalized_dir=normalized_dir, block_id=block_id)
+    except FileNotFoundError as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(code=2) from e
+    typer.echo(block.model_dump_json(indent=2))
 
 
 @app.command()
