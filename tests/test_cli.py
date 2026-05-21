@@ -106,3 +106,36 @@ def test_pageindex_read_missing_returns_nonzero(tmp_path):
         app, ["pageindex", "read", "absent.pdf", "--index-dir", str(tmp_path)]
     )
     assert result.exit_code != 0
+
+
+def test_wiki_write_read_and_list_via_cli(tmp_path):
+    payload = {
+        "topic": "PII handling rules",
+        "source_refs": ["claims.pdf#p14#3.2"],
+        "body": "Fields A and B must be encrypted. [ref: claims.pdf#p14#3.2]",
+    }
+    write_result = runner.invoke(
+        app,
+        ["wiki", "write", "pii-handling-rules", "--wiki-dir", str(tmp_path)],
+        input=json.dumps(payload),
+    )
+    assert write_result.exit_code == 0, write_result.output
+
+    list_result = runner.invoke(app, ["wiki", "list", "--wiki-dir", str(tmp_path)])
+    assert list_result.exit_code == 0
+    assert "pii-handling-rules" in list_result.output
+
+    read_result = runner.invoke(
+        app, ["wiki", "read", "pii-handling-rules", "--wiki-dir", str(tmp_path)]
+    )
+    assert read_result.exit_code == 0
+    parsed = json.loads(read_result.output)
+    assert parsed["topic"] == "PII handling rules"
+    assert parsed["source_refs"] == ["claims.pdf#p14#3.2"]
+
+
+def test_wiki_read_missing_returns_nonzero(tmp_path):
+    result = runner.invoke(
+        app, ["wiki", "read", "absent", "--wiki-dir", str(tmp_path)]
+    )
+    assert result.exit_code != 0

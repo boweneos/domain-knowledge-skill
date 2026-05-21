@@ -9,6 +9,7 @@ from dks.normalizer import normalize
 from dks.parsers import get_parser
 from dks.store.blocks import get_block, list_blocks
 from dks.store.pageindex import read_pageindex, write_pageindex
+from dks.store.wiki import WikiEntry, list_wiki_entries, read_wiki_entry, write_wiki_entry
 from dks.writer import write_blocks
 
 app = typer.Typer(no_args_is_help=True)
@@ -24,6 +25,9 @@ app.add_typer(blocks_app, name="blocks")
 
 pageindex_app = typer.Typer(no_args_is_help=True, help="Manage PageIndex trees.")
 app.add_typer(pageindex_app, name="pageindex")
+
+wiki_app = typer.Typer(no_args_is_help=True, help="Manage compiled wiki entries.")
+app.add_typer(wiki_app, name="wiki")
 
 
 @pageindex_app.command("write")
@@ -79,6 +83,43 @@ def blocks_get(
         typer.echo(f"error: {e}", err=True)
         raise typer.Exit(code=2) from e
     typer.echo(block.model_dump_json(indent=2))
+
+
+@wiki_app.command("write")
+def wiki_write(
+    slug: str = typer.Argument(..., help="Slug for the wiki entry (kebab-case)."),  # noqa: B008
+    wiki_dir: Path = typer.Option(Path("wiki"), "--wiki-dir", "-w"),  # noqa: B008
+) -> None:
+    """Read a JSON {topic, source_refs, body} object from stdin and persist as <slug>.md."""
+    import sys
+    data = json.loads(sys.stdin.read())
+    data["slug"] = slug
+    entry = WikiEntry.model_validate(data)
+    target = write_wiki_entry(wiki_dir, entry)
+    typer.echo(f"wrote {target}")
+
+
+@wiki_app.command("read")
+def wiki_read(
+    slug: str = typer.Argument(...),  # noqa: B008
+    wiki_dir: Path = typer.Option(Path("wiki"), "--wiki-dir", "-w"),  # noqa: B008
+) -> None:
+    """Print a wiki entry (JSON) for a slug."""
+    try:
+        entry = read_wiki_entry(wiki_dir, slug)
+    except FileNotFoundError as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(code=2) from e
+    typer.echo(entry.model_dump_json(indent=2))
+
+
+@wiki_app.command("list")
+def wiki_list(
+    wiki_dir: Path = typer.Option(Path("wiki"), "--wiki-dir", "-w"),  # noqa: B008
+) -> None:
+    """List all wiki slugs."""
+    for slug in sorted(list_wiki_entries(wiki_dir)):
+        typer.echo(slug)
 
 
 @app.command()
