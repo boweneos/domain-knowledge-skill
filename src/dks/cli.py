@@ -7,6 +7,7 @@ import typer
 
 from dks.normalizer import normalize
 from dks.parsers import get_parser
+from dks.search import search_wiki
 from dks.store.blocks import get_block, list_blocks
 from dks.store.pageindex import read_pageindex, write_pageindex
 from dks.store.wiki import WikiEntry, list_wiki_entries, read_wiki_entry, write_wiki_entry
@@ -120,6 +121,16 @@ def wiki_list(
     """List all wiki slugs."""
     for slug in sorted(list_wiki_entries(wiki_dir)):
         typer.echo(slug)
+
+
+@wiki_app.command("search")
+def wiki_search(
+    query: str = typer.Argument(..., help="Search query (case-insensitive substring)."),  # noqa: B008
+    wiki_dir: Path = typer.Option(Path("wiki"), "--wiki-dir", "-w"),  # noqa: B008
+) -> None:
+    """Print matching wiki entries (JSON list)."""
+    hits = search_wiki(wiki_dir=wiki_dir, query=query)
+    typer.echo(json.dumps([h.model_dump() for h in hits], indent=2))
 
 
 @app.command()
