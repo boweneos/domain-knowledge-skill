@@ -139,3 +139,23 @@ def test_wiki_read_missing_returns_nonzero(tmp_path):
         app, ["wiki", "read", "absent", "--wiki-dir", str(tmp_path)]
     )
     assert result.exit_code != 0
+
+
+def test_wiki_search_via_cli(tmp_path):
+    payload = {
+        "topic": "PII handling",
+        "source_refs": ["c.pdf#p1"],
+        "body": "Encrypt PII at rest.",
+    }
+    runner.invoke(
+        app,
+        ["wiki", "write", "pii-handling", "--wiki-dir", str(tmp_path)],
+        input=json.dumps(payload),
+    )
+    result = runner.invoke(
+        app, ["wiki", "search", "PII", "--wiki-dir", str(tmp_path)]
+    )
+    assert result.exit_code == 0, result.output
+    hits = json.loads(result.output)
+    assert len(hits) == 1
+    assert hits[0]["slug"] == "pii-handling"
