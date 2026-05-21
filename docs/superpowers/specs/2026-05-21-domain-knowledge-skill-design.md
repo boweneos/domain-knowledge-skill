@@ -96,6 +96,15 @@ A lint pass detects broken links, contradicting summaries, and missing topics.
 
 ### Layer 5 — Skill interface (Claude Code, v0)
 
+**Architecture refinement (2026-05-21):** All LLM-driven operations — PageIndex tree builds, wiki compile, lint, and eval — are exposed as **Claude Code skill commands**, not as in-process LLM calls from the `dks` Python package. The Python package stays deterministic (parsers, normalization, storage, file IO, CLI). Skills orchestrate the LLM judgment and invoke the `dks` CLI for any deterministic step (read blocks, persist tree, write wiki entry).
+
+Consequences:
+- No `ANTHROPIC_API_KEY` or other provider credentials in the `dks` package.
+- No LLM client code, no prompt management, no cost accounting inside Python — Claude Code's existing auth and billing handles all of it.
+- A new user installs the `dks` Python package (deterministic) **and** copies the skills directory into their `~/.claude/skills/` (LLM-driven). Both halves are version-controlled in the same repo.
+
+The narrow tool contract below describes the **consumer-facing** skill (what other agents call when they need to ground a fact). Internal skills (`build-pageindex`, `compile-wiki`, `lint-wiki`) live alongside.
+
 Two tools with a narrow contract. The narrowness is what makes citation discipline enforceable.
 
 **`BlockRef`** is the opaque string identifier of a normalized block. Format:
