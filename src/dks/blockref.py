@@ -16,6 +16,8 @@ def encode_blockref(source_file: str, locator: Locator) -> str:
         suffix = f"p{locator.page}"
         if locator.section:
             suffix += f"#{locator.section}"
+        if locator.clause:
+            suffix += f"#{locator.clause}"
         return f"{source_file}#{suffix}"
     if isinstance(locator, DocxLocator):
         return f"{source_file}#§{locator.section}#p{locator.paragraph_idx}"
@@ -26,7 +28,7 @@ def encode_blockref(source_file: str, locator: Locator) -> str:
     raise TypeError(f"Unknown locator type: {type(locator).__name__}")
 
 
-_PDF_RE = re.compile(r"^p(?P<page>\d+)(?:#(?P<section>.+))?$")
+_PDF_RE = re.compile(r"^p(?P<page>\d+)(?:#(?P<section>[^#]+))?(?:#(?P<clause>.+))?$")
 _DOCX_RE = re.compile(r"^§(?P<section>.+?)#p(?P<idx>\d+)$")
 _EXCEL_RE = re.compile(r"^s(?P<sheet>[^!]+)!(?P<cells>.+)$")
 _MD_RE = re.compile(r"^L(?P<start>\d+)-(?P<end>\d+)$")
@@ -43,7 +45,8 @@ def decode_blockref(ref: str) -> tuple[str, Locator]:
     if m := _PDF_RE.match(locator_str):
         page = int(m.group("page"))
         section = m.group("section")
-        return source_file, PdfLocator(page=page, section=section)
+        clause = m.group("clause")
+        return source_file, PdfLocator(page=page, section=section, clause=clause)
 
     if m := _DOCX_RE.match(locator_str):
         return source_file, DocxLocator(
