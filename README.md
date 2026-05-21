@@ -40,8 +40,9 @@ MIT — see [LICENSE](LICENSE).
 
 LLM-driven operations are exposed as Claude Code skills under `skills/`. Copy them into your `~/.claude/skills/` directory to enable:
 
+- `dks-search` — **consumer-facing.** Ground domain facts in citable source for compliance-sensitive code. This is the skill other agents call.
 - `dks-build-pageindex` — construct a hierarchical tree for an ingested source.
-- `dks-compile-wiki` (Phase 2) — compile citation-preserving wiki articles.
-- `dks-lint-wiki` (Phase 2) — scan the wiki for broken refs and contradictions.
+- `dks-compile-wiki` — compile citation-preserving wiki articles.
+- `dks-lint-wiki` — scan the wiki for broken refs and contradictions.
 
 Skills invoke the `dks` CLI for all deterministic operations; the LLM work happens inside Claude Code with its own auth.
