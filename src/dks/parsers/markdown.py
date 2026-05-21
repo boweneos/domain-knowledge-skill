@@ -15,7 +15,7 @@ _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 
 
 def parse_markdown_file(path: Path) -> list[TypedContentItem]:
-    lines = Path(path).read_text().splitlines()
+    lines = Path(path).read_text(encoding="utf-8-sig").splitlines()
     items: list[TypedContentItem] = []
     heading_path: list[str] = []
     para_buf: list[str] = []

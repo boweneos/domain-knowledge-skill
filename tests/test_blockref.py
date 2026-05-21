@@ -59,3 +59,16 @@ def test_decode_rejects_malformed():
 def test_decode_rejects_unknown_locator_prefix():
     with pytest.raises(ValueError, match="unknown locator"):
         decode_blockref("file.xyz#qWhatever")
+
+
+def test_encode_pdf_with_section_and_clause():
+    ref = encode_blockref("policies/claims.pdf", PdfLocator(page=14, section="3.2", clause="3.2.1"))
+    assert ref == "policies/claims.pdf#p14#3.2#3.2.1"
+
+
+def test_roundtrip_pdf_with_clause():
+    original = PdfLocator(page=14, section="3.2", clause="3.2.1")
+    ref = encode_blockref("policies/claims.pdf", original)
+    src, loc = decode_blockref(ref)
+    assert src == "policies/claims.pdf"
+    assert loc == original

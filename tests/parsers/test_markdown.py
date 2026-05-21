@@ -54,3 +54,15 @@ def test_parse_markdown_line_ranges_are_one_indexed_and_inclusive(tmp_path: Path
     assert items[0].locator.line_end == 2
     assert items[1].locator.line_start == 4
     assert items[1].locator.line_end == 4
+
+
+def test_parse_markdown_strips_utf8_bom(tmp_path):
+    src = tmp_path / "bom.md"
+    # Write with explicit UTF-8 BOM (﻿ encoded as utf-8 = b'\xef\xbb\xbf')
+    src.write_bytes("﻿# Heading\n\nA paragraph.\n".encode())
+    items = parse_markdown_file(src)
+    headings = [i for i in items if i.block_type == "heading"]
+    assert len(headings) == 1
+    # The BOM should be stripped from the heading content
+    assert "﻿" not in headings[0].content
+    assert "# Heading" in headings[0].content
