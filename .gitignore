@@ -15,3 +15,11 @@ node_modules/
 # normalized/
 # index/
 # wiki/
+
+.venv/
+uv.lock
+normalized/
+raw/
+
+# Allow fixture files to be tracked
+!tests/fixtures/
