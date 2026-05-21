@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from pathlib import Path
 
+from dks.parsers.docx import parse_docx_file
 from dks.parsers.excel import parse_excel_file
 from dks.parsers.markdown import parse_markdown_file
 from dks.types import TypedContentItem
@@ -12,6 +13,7 @@ ParserFn = Callable[[Path], list[TypedContentItem]]
 _REGISTRY: dict[str, ParserFn] = {
     ".md": parse_markdown_file,
     ".xlsx": parse_excel_file,
+    ".docx": parse_docx_file,
 }
 
 
