@@ -1,0 +1,56 @@
+---
+name: dks-compile-wiki
+description: Compile a citation-preserving wiki article on a domain topic from normalized blocks. Use when the user wants to summarize a body of evidence into a topic article that consumer agents can read for discovery. Every claim in the output must cite a block_id.
+---
+
+# dks-compile-wiki
+
+You compile a Markdown article on a domain topic from a set of normalized source blocks. Every factual claim in the article must include an inline citation to a `block_id`.
+
+## Input
+
+The user names:
+- A **topic** (free text), e.g. *"PII handling rules in life-insurance products"*
+- A **slug** (kebab-case, no spaces, no slashes, lowercase), e.g. `pii-handling-rules`
+- A set of **source_files** OR **block_ids** to draw from. If only source_files are given, list the blocks for each.
+
+## Procedure
+
+1. **Gather blocks.** For each source_file, run `dks blocks list <source>`. For each `block_id` (whether from the user or from the list), run `dks blocks get <block_id>` and capture the JSON.
+
+2. **Compose the article.** Write a Markdown article on the topic. Rules:
+   - Every factual statement must end with an inline citation: `[ref: <block_id>]`.
+   - Multiple citations: `[ref: id1, id2]`.
+   - Do not synthesize claims that aren't supported by a block. If two blocks contradict, write `X says A [ref: ...] but Y says B [ref: ...]` and surface the conflict explicitly.
+   - Use the canonical `block_id` strings exactly as returned by the CLI. Do not abbreviate or rewrite them.
+   - Open with a short summary paragraph (1–2 sentences) of the topic before going into specifics.
+   - Use H2/H3 to organize sub-topics if the material warrants it. Don't add an H1 — the wiki frontmatter carries the topic.
+
+3. **Collect the unique source_refs.** Extract every distinct `block_id` you cited; that is the `source_refs` list.
+
+4. **Persist.** Build a JSON object:
+   ```json
+   {
+     "topic": "<topic>",
+     "source_refs": ["<id>", "..."],
+     "body": "<full article markdown>"
+   }
+   ```
+   Pipe it into:
+   ```bash
+   echo '<json>' | dks wiki write <slug>
+   ```
+
+5. **Report.** Tell the user the slug, the path written, the source_ref count, and the article length in words.
+
+## Constraints
+
+- **No uncited claim, ever.** If you start a sentence and can't end with `[ref: ...]`, you don't have evidence — either find a block that supports it, or omit the sentence. This is the core discipline; do not relax it.
+- **No paraphrase past recognition.** Reword for clarity but don't change meaning. The wiki is for discovery; the underlying block is the source of truth.
+- **No silent block dropping.** If a block in the user-provided set is irrelevant to the topic, you may exclude it from `source_refs`, but tell the user in your report which blocks were excluded and why.
+- **Slug discipline.** The slug becomes a filename. Reject slugs with `/`, spaces, uppercase, or non-ASCII characters. Ask the user for a fixed slug if theirs is invalid; don't silently normalize.
+- **No editing existing wiki entries.** This skill only writes new entries. If the slug already exists, the write will overwrite it — confirm with the user before doing so.
+
+## Cost guidance
+
+Compiling one wiki article from ~50 blocks should fit comfortably in a single Sonnet-class prompt with ~30K–60K tokens of context. Don't loop per-block with LLM calls; fetch them all, reason once.
