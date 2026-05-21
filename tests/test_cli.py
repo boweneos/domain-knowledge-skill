@@ -1,3 +1,5 @@
+import json
+
 from typer.testing import CliRunner
 
 from dks.cli import app
@@ -79,5 +81,28 @@ def test_blocks_get_after_ingest(tmp_path):
 def test_blocks_get_missing_returns_nonzero(tmp_path):
     result = runner.invoke(
         app, ["blocks", "get", "absent.md#L1-1", "--normalized-dir", str(tmp_path)]
+    )
+    assert result.exit_code != 0
+
+
+def test_pageindex_write_and_read_via_cli(tmp_path):
+    tree = {"title": "Top", "block_ids": [], "children": []}
+    write_result = runner.invoke(
+        app,
+        ["pageindex", "write", "x.pdf", "--index-dir", str(tmp_path)],
+        input=json.dumps(tree),
+    )
+    assert write_result.exit_code == 0, write_result.output
+
+    read_result = runner.invoke(
+        app, ["pageindex", "read", "x.pdf", "--index-dir", str(tmp_path)]
+    )
+    assert read_result.exit_code == 0, read_result.output
+    assert json.loads(read_result.output) == tree
+
+
+def test_pageindex_read_missing_returns_nonzero(tmp_path):
+    result = runner.invoke(
+        app, ["pageindex", "read", "absent.pdf", "--index-dir", str(tmp_path)]
     )
     assert result.exit_code != 0

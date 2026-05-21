@@ -1,5 +1,6 @@
 """Typer CLI: `dks ingest <path>`."""
 
+import json
 from pathlib import Path
 
 import typer
@@ -7,6 +8,7 @@ import typer
 from dks.normalizer import normalize
 from dks.parsers import get_parser
 from dks.store.blocks import get_block, list_blocks
+from dks.store.pageindex import read_pageindex, write_pageindex
 from dks.writer import write_blocks
 
 app = typer.Typer(no_args_is_help=True)
@@ -19,6 +21,35 @@ def main() -> None:
 
 blocks_app = typer.Typer(no_args_is_help=True, help="Inspect normalized blocks.")
 app.add_typer(blocks_app, name="blocks")
+
+pageindex_app = typer.Typer(no_args_is_help=True, help="Manage PageIndex trees.")
+app.add_typer(pageindex_app, name="pageindex")
+
+
+@pageindex_app.command("write")
+def pageindex_write(
+    source_file: str = typer.Argument(..., help="Source file the tree describes."),  # noqa: B008
+    index_dir: Path = typer.Option(Path("index"), "--index-dir", "-i"),  # noqa: B008
+) -> None:
+    """Read a JSON tree from stdin and persist it."""
+    import sys
+    tree = json.loads(sys.stdin.read())
+    target = write_pageindex(index_dir, source_file=source_file, tree=tree)
+    typer.echo(f"wrote {target}")
+
+
+@pageindex_app.command("read")
+def pageindex_read(
+    source_file: str = typer.Argument(...),  # noqa: B008
+    index_dir: Path = typer.Option(Path("index"), "--index-dir", "-i"),  # noqa: B008
+) -> None:
+    """Print the PageIndex tree (JSON) for a source."""
+    try:
+        tree = read_pageindex(index_dir, source_file=source_file)
+    except FileNotFoundError as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(code=2) from e
+    typer.echo(json.dumps(tree, indent=2))
 
 
 @blocks_app.command("list")
