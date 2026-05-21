@@ -1,5 +1,3 @@
-import pytest
-
 from dks.locators import MarkdownLocator
 from dks.normalizer import normalize
 from dks.types import TypedContentItem
