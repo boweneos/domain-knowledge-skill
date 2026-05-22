@@ -1,7 +1,7 @@
 # Domain Knowledge Skill — Architecture Spec
 
 **Date:** 2026-05-21
-**Status:** Draft, pending user review
+**Status:** Shipped — all three phases merged to main (`phase-1-complete`, `phase-2-complete`, `phase-3-complete`). 81 tests passing. See [`docs/USAGE.md`](../../USAGE.md) for the worked walkthrough.
 **Scope:** Generic life-insurance domain (public OSS)
 
 ## 1. Purpose
