@@ -2,6 +2,19 @@
 
 Notes from the Phase 1 final review (sonnet, 2026-05-21). All five items are **non-blocking for Phase 2 to begin**, but each is a real decision to revisit before Phase 2 ships.
 
+## Status (updated 2026-05-25)
+
+| # | Item | Status | Where addressed |
+|---|---|---|---|
+| 1 | `source_file` scoping (basename collision) | ✅ addressed | Phase 2 Task 0: `dks ingest --root <dir>` computes relative path |
+| 2 | `PdfLocator.clause` unused by encoder | ✅ addressed | Phase 2 Task 0: clause now encoded as `<file>#p<page>#<section>#<clause>`; `_PDF_RE` updated |
+| 3 | BOM handling in Markdown parser | ✅ addressed | Phase 2 Task 0: `read_text(encoding="utf-8-sig")` |
+| 4 | `heading_path` lossy in `decode_blockref` | ⚠ open | Documented behaviour; not a citation-integrity bug (`check_block` re-encodes from the live locator). Only matters if a future consumer calls `decode_blockref` and expects to recover heading_path. |
+| 5 | `block_type` forward declarations (`table`/`list`/`code`) | ◐ partially | Excel parser emits `table`; DOCX/PDF parsers still only emit `text`/`heading`. Refinement deferred. |
+| 6 | Cross-field validator on `MarkdownLocator` (`line_end >= line_start`) | ⚠ open | Not currently exploited. Worth adding before accepting locators from external callers. |
+
+Items 1-3 closed in Phase 2; items 4-6 remain explicit open follow-ups (none blocking).
+
 ## 1. `source_file` scoping (collision risk)
 
 `cli.ingest` currently passes `path.name` (basename) as `source_file`. Two files with the same name in different directories produce colliding `block_id`s and colliding output filenames.
