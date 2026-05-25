@@ -144,6 +144,73 @@ For Path D, `rm -rf ~/.claude/skills/dks-*`.
 
 ---
 
+## Cascaded KB layers
+
+`dks` supports a two-layer KB so a single plugin install can serve multiple projects without duplicating company-wide content into every repo.
+
+### The two layers
+
+| Layer | Default location | Override |
+|---|---|---|
+| **Global** | `~/.dks/` | `DKS_GLOBAL=/path/to/global` env var, or `--global /path` CLI flag |
+| **Project** | Auto-discovered (walk up from CWD looking for a `.dks/` directory) | `DKS_PROJECT=/path/to/project/.dks` env var, or `--project /path` CLI flag |
+
+Each layer is a directory containing the four subdirs `raw/`, `normalized/`, `index/`, `wiki/` — the same layout the CLI used in single-layer mode.
+
+### Read semantics — project shadows global
+
+Every read cascades **project first, fall back to global**. Specifically:
+
+- `dks blocks get <id>` — tries project, falls back to global. Output JSON includes a `layer` field: `{"block": {...}, "layer": "project"}`.
+- `dks blocks list <source>` — merges block_ids from both layers, deduped (project shadows global on collision). Output: `[{"block_id": "...", "layer": "project|global"}, ...]`.
+- `dks wiki list` — same dedup-and-tag for slugs.
+- `dks wiki read <slug>` — same project-first cascade with `layer` tag.
+- `dks wiki search <query>` — searches both layers; each hit carries `layer`.
+- `dks pageindex read <source>` — same cascade.
+
+### Write semantics — project by default
+
+Writes go to the **project layer** when one exists. If no project layer is active (you're outside any `.dks/`-marked directory), writes go to global. Pass `--write-global` on `ingest` / `pageindex write` / `wiki write` to force the global layer regardless.
+
+### When to write to which
+
+| Content | Where | Why |
+|---|---|---|
+| Company-wide policies, regulations, standards that every project should consult | **Global** | Single source of truth across products; `--write-global` |
+| Project-specific overrides (custom rules, product-line exceptions) | **Project** (default) | Auto-discovered; shadows global where slugs collide |
+| Ad-hoc test corpora during plugin development | **Project** | Isolated to the test directory; doesn't pollute global |
+
+### Citation format
+
+The consumer skill (`dks-search`) surfaces the layer in citations:
+
+```
+Claims must be filed within 30 days [ref: claims.pdf#p14#3.2 @ global].
+The product-line extension to 60 days [ref: product-rules.md#L8-12 @ project] applies only to legacy term-life products.
+```
+
+Layer tags help reviewers see at a glance whether a fact is a company-wide rule or a project-specific override.
+
+### Auto-discovery
+
+When no `--project` flag or `DKS_PROJECT` env var is set, the CLI walks up from the current working directory looking for a `.dks/` directory. The first match becomes the project layer. If we hit the filesystem root with no match, there's no project layer and only global is active. This mirrors how `git` finds `.git/` and how `npm` walks up for `node_modules/`.
+
+### Suppressing the global layer
+
+Pass `--no-global` to any command if you want project-only mode (no global fallback for reads, no `~/.dks/` writes). Useful when working in a sandboxed corpus where you don't want cross-talk.
+
+### Project layer initialisation
+
+To start using the project layer in a repo, just create `.dks/`:
+
+```bash
+mkdir .dks
+```
+
+The first `dks ingest`, `dks wiki write`, or `dks pageindex write` from inside that repo will populate the standard subdirs automatically.
+
+---
+
 ## Step 1 — Curate `raw/`
 
 Drop authoritative source documents into `raw/`. Mirror your real folder taxonomy; the path under `raw/` becomes the canonical `source_file` identifier for every block.
