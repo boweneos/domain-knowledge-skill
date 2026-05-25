@@ -6,7 +6,7 @@ from dks.block import NormalizedBlock
 from dks.blockref import encode_blockref
 from dks.layers import KbLayer, KbLayers
 from dks.locators import MarkdownLocator
-from dks.store.blocks import BlockHit, get_block, list_blocks
+from dks.store.blocks import get_block, list_blocks
 from dks.writer import write_blocks
 
 
