@@ -36,9 +36,9 @@ Run:
 ```bash
 dks wiki search "<query>"
 ```
-This returns a JSON array of matching wiki entries, each with `slug`, `topic`, `source_refs`, and a `snippet`.
+This returns a JSON array of matching wiki entries, each with `slug`, `topic`, `source_refs`, a `snippet`, and a `layer` field (`"project"` or `"global"`) indicating which layer owns this entry.
 
-Read the snippets. The snippet is **not** authoritative — it's a discovery hint to help you pick which source blocks to fetch next.
+Read the snippets. The snippet is **not** authoritative — it's a discovery hint to help you pick which source blocks to fetch next. Note the `layer` on each hit — you'll include it in citations.
 
 If no entries match:
 - Tell the user the topic is not yet in the KB.
@@ -50,23 +50,25 @@ For each `block_id` in the `source_refs` of a relevant hit, run:
 ```bash
 dks blocks get "<block_id>"
 ```
-This returns the block as JSON: `{source_file, block_id, locator, block_type, content}`. The `content` is the verbatim source text. The `locator` is the citation primitive (page, section/clause for PDFs; sheet+cells for Excel; etc.).
+This returns a JSON object with two top-level fields:
+- `.block` — the full block JSON: `{source_file, block_id, locator, block_type, content}`.
+- `.layer` — which layer resolved this block (`"project"` or `"global"`).
 
-Use `content` as your source of truth, not the wiki snippet.
+Use `.block.content` as your source of truth (not the wiki snippet). Use `.block.locator` for the citation primitive (page, section/clause for PDFs; sheet+cells for Excel; etc.). Capture `.layer` — you'll include it in citations.
 
 If you need adjacent context (the block before or after), use:
 ```bash
 dks blocks list "<source_file>"
 ```
-to enumerate blocks for that source, then fetch by `block_id` as above.
+This returns a JSON array of `{"block_id": "...", "layer": "..."}` objects (not a flat list of strings). Pick the relevant `block_id`s from that array, then fetch each with `dks blocks get` as above.
 
 ### Phase 3 — Emit cited facts
 
 When you write code, documentation, or an answer that uses a fact you extracted:
 - Quote or paraphrase the verbatim block content.
-- Always include the citation in a form that traces back to source. Examples:
-  - In code comments: `# Retention rule: 7 years (source: claims.pdf p20 §5.1, block claims.pdf#p20#5.1)`
-  - In prose: `Claims must be filed within 30 days [source: claims.pdf#p14#3.2].`
+- Always include the citation in a form that traces back to source, including the `@ layer` suffix from `.layer`. Examples:
+  - In code comments: `# Retention rule: 7 years (source: claims.pdf p20 §5.1 @ global, block claims.pdf#p20#5.1)`
+  - In prose: `Claims must be filed within 30 days [ref: claims.pdf#p14#3.2 @ global].`
   - In a PR description: a "Sources" section listing each block_id you relied on.
 
 ### Output format template
@@ -74,11 +76,11 @@ When you write code, documentation, or an answer that uses a fact you extracted:
 When you emit a grounded answer, use this shape. The trailing `Sources` block makes the citation contract visible and auditable.
 
 ```
-[Answer in your own words, with inline citations like [ref: <block_id>] on every factual claim.]
+[Answer in your own words, with inline citations like [ref: <block_id> @ <layer>] on every factual claim.]
 
 Sources:
-- <block_id_1> — <source_file> <human-readable locator e.g. "page 14 §3.2">
-- <block_id_2> — <source_file> <human-readable locator>
+- <block_id_1> @ <layer> — <source_file> <human-readable locator e.g. "page 14 §3.2">
+- <block_id_2> @ <layer> — <source_file> <human-readable locator>
 ```
 
 When the answer is code, put the inline citations in comments adjacent to the relevant lines and the `Sources:` block in the PR description or your message to the user — not buried in code.
@@ -132,6 +134,16 @@ Recommend: run dks-lint-wiki to surface all stale citations, then re-run dks-com
 
 For this question, I'll abstain on the grounded claim until the wiki is refreshed.
 ```
+
+### Project overrides global on the same topic
+
+When the same slug (or closely related blocks) appears in both the `project` and `global` layers, the project version wins — the CLI resolves to it automatically. When this happens and it matters for the answer, surface it explicitly:
+
+```
+Note: project-specific override of a global rule. The global layer says X [ref: <id> @ global]; this project applies Y instead [ref: <id> @ project].
+```
+
+This makes layer divergence visible to the reader rather than silently shadowing.
 
 ### KB-covered topic but agent doesn't believe it
 
