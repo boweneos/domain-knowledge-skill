@@ -298,6 +298,46 @@ All LLM cost flows through Claude Code's own auth and billing. The `dks` Python 
 - **Don't auto-fix lint failures.** Lint is read-only by design. Failures require human judgment about whether a re-compile, a re-ingest, or a real policy change is the right response.
 - **Trust abstention.** When Claude Code says "the KB does not contain a citation for X," that's the contract working. Either fix the gap (compile a wiki entry) or accept the un-grounded code with eyes open.
 
+### Scripting against the CLI — shell-quoting gotcha
+
+The CLI emits JSON with newlines escaped as `\n` (correct per the JSON spec). Bash's builtin `echo` interprets those escapes by default and converts `\n` to actual newline characters — which then breaks downstream JSON parsers with `Invalid control character` errors.
+
+**Don't:**
+
+```bash
+HITS=$(dks wiki search "filing window")
+echo "$HITS" | python3 -m json.tool      # echo unescapes \n → invalid JSON
+```
+
+**Do — any of these:**
+
+```bash
+# 1. printf with %s — does not interpret escapes
+printf '%s' "$HITS" | python3 -m json.tool
+
+# 2. here-string — preserves bytes verbatim
+python3 -m json.tool <<< "$HITS"
+
+# 3. pipe directly without intermediate capture
+dks wiki search "filing window" | python3 -m json.tool
+
+# 4. write to a tempfile
+dks wiki search "filing window" > /tmp/hits.json
+python3 -m json.tool < /tmp/hits.json
+```
+
+Same rule applies when iterating block_ids returned by `dks blocks list`:
+
+```bash
+# Don't word-split into a single $for variable — block_ids contain # and / which are
+# fine in shell, but the whole-array form is brittle. Prefer one-per-line:
+while IFS= read -r block_id; do
+  dks blocks get "$block_id"
+done < <(dks blocks list policies/term-life-policy.pdf)
+```
+
+This is a shell-script-author concern, not a `dks` issue — the CLI output is valid JSON in every case.
+
 ---
 
 ## What's not in scope (yet)
