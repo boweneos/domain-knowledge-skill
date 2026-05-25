@@ -6,15 +6,16 @@ When Claude Code (or any consumer agent) writes code that touches regulated logi
 
 ## Status
 
-**Shipped end-to-end.** Three phases merged to `main` and tagged:
+**Shipped end-to-end. Current version: 0.2.0.** Four phases merged to `main` and tagged:
 
 | Tag | What |
 |---|---|
 | `phase-1-complete` | Citation primitives, normalizer, writer, Markdown parser, `dks ingest` CLI. |
 | `phase-2-complete` | Excel / DOCX / PDF parsers, block + PageIndex + wiki storage, three LLM-orchestration skills. |
 | `phase-3-complete` | Keyword search, consumer-facing `dks-search` skill, eval scaffolding. |
+| `phase-4-complete` | **Cascaded KB**: global `~/.dks/` + auto-discovered project `.dks/` layers. Project shadows global; writes default to project. v0.2.0 (breaking CLI flag rename). |
 
-81 tests passing, mypy strict + ruff clean. End-to-end smoke verified on the project's own design spec.
+93 tests passing, mypy strict + ruff clean. End-to-end smoke verified on the project's own design spec and on layer cascade behaviour.
 
 ---
 
@@ -172,9 +173,13 @@ If `dks-search` can't find a block to ground a claim, the right behavior is for 
 
 ### Use git as the audit trail
 
-`raw/`, `normalized/`, `index/`, and `wiki/` are all file-over-app and git-trackable. The `.gitignore` currently excludes `normalized/` and `raw/` (regenerable / sensitive), but `wiki/` and `index/` are worth committing — they capture the human-reviewed knowledge state and make changes diffable.
+`raw/`, `normalized/`, `index/`, and `wiki/` are all file-over-app and git-trackable in **each layer**. The repo's own `.gitignore` excludes top-level `normalized/` and `raw/` (regenerable / sensitive); `wiki/` and `index/` are committable so the human-reviewed knowledge state is diffable.
 
-To track everything (including raw), comment out the relevant lines in `.gitignore`.
+For project layers (a `.dks/` directory inside a product repo), pick a convention per repo:
+- Commit `.dks/wiki/` and `.dks/index/` so teammates see the same override state.
+- Gitignore `.dks/raw/` and `.dks/normalized/` unless you want full reproducibility from this repo alone.
+
+The global layer (`~/.dks/`) lives in your home directory and isn't tracked by any repo — back it up separately or rebuild it on demand from a source-of-truth corpus directory.
 
 ---
 
@@ -182,19 +187,29 @@ To track everything (including raw), comment out the relevant lines in `.gitigno
 
 All deterministic operations. Skills invoke these; you can also run them directly.
 
+### Top-level layer flags (apply to every subcommand)
+
+| Flag | Default | What |
+|---|---|---|
+| `--project <path>` | auto-discover `.dks/` | Explicit project layer base. Overrides `DKS_PROJECT` env. |
+| `--global <path>` | `~/.dks/` | Explicit global layer base. Overrides `DKS_GLOBAL` env. |
+| `--no-global` | global is active | Suppress the global layer entirely (project-only mode). |
+
+### Subcommands
+
 | Command | Purpose |
 |---|---|
-| `dks ingest <path> [--root DIR] [--output-dir DIR]` | Parse + normalize + write blocks. `--root` (default `raw/`) defines the relative `source_file` path. |
-| `dks blocks list <source_file>` | List all `block_id`s for a source. |
-| `dks blocks get <block_id>` | Print one block as JSON (frontmatter + verbatim content). |
-| `dks pageindex write <source_file>` | Read JSON tree from stdin, persist as `<index_dir>/<source>.pageindex.json`. |
-| `dks pageindex read <source_file>` | Print the tree for a source. |
-| `dks wiki write <slug>` | Read `{topic, source_refs, body}` JSON from stdin, persist as `wiki/<slug>.md`. |
-| `dks wiki read <slug>` | Print a wiki entry. |
-| `dks wiki list` | List all wiki slugs. |
-| `dks wiki search <query>` | Keyword search over topic + body, returns JSON `SearchHit` list. |
+| `dks ingest <path> [--root DIR] [--write-global]` | Parse + normalize + write blocks. `--root` (default `raw/`) defines the relative `source_file` path. Writes to project layer by default; `--write-global` forces global. |
+| `dks blocks list <source_file>` | List `BlockHit`s across active layers: `[{"block_id", "layer"}, ...]` (deduped, project shadows global). |
+| `dks blocks get <block_id>` | Print `{"block": {...}, "layer": "..."}` from the first layer that has it. |
+| `dks pageindex write <source_file> [--write-global]` | Read JSON tree from stdin, persist as `<layer>/index/<source>.pageindex.json`. |
+| `dks pageindex read <source_file>` | Print `{"tree": {...}, "layer": "..."}`. |
+| `dks wiki write <slug> [--write-global]` | Read `{topic, source_refs, body}` JSON from stdin, persist as `<layer>/wiki/<slug>.md`. |
+| `dks wiki read <slug>` | Print `{"entry": {...}, "layer": "..."}`. |
+| `dks wiki list` | List all wiki slugs across active layers: `[{"slug", "layer"}, ...]`. |
+| `dks wiki search <query>` | Keyword search over topic + body across layers; each `SearchHit` carries a `layer` tag. |
 
-Use `--help` on any subcommand for flags and defaults.
+Use `--help` on any subcommand for flags and defaults. Full layer semantics are documented in [`docs/USAGE.md` → Cascaded KB layers](docs/USAGE.md#cascaded-kb-layers).
 
 ---
 

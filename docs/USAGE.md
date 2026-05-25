@@ -19,7 +19,7 @@ git clone git@github.com:boweneos/domain-knowledge-skill.git
 cd domain-knowledge-skill
 uv sync --all-groups
 uv run dks --help     # smoke check
-uv run pytest         # full suite — 81 passing expected
+uv run pytest         # full suite — 93 passing expected
 ```
 
 The CLI is then runnable as `uv run dks ...` from the project root, or you can `uv pip install -e .` into a venv on your PATH if you want a global `dks` binary.
@@ -230,45 +230,51 @@ Best practice: snapshot the version you ingested. Policies change; the KB should
 
 ## Step 2 — Ingest
 
-One command per source. The parser is chosen by suffix.
+One command per source. The parser is chosen by suffix. By default, ingest writes to the **project layer** (auto-discovered from CWD by walking up for `.dks/`); pass `--write-global` to push into the global layer at `~/.dks/`.
 
 ```bash
+# From inside a project repo with a .dks/ at the root:
 $ uv run dks ingest raw/policies/claims_handling.pdf
-wrote 287 blocks to normalized/claims_handling.pdf/
+wrote 287 blocks to <project>/.dks/normalized/policies/claims_handling.pdf/
+
+# Or to write into the global layer (company-wide reference doc):
+$ uv run dks ingest raw/policies/claims_handling.pdf --write-global
+wrote 287 blocks to ~/.dks/normalized/policies/claims_handling.pdf/
 
 $ uv run dks ingest raw/policies/pii_obligations.docx
-wrote 64 blocks to normalized/pii_obligations.docx/
-
 $ uv run dks ingest raw/schedules/retention_periods.xlsx
-wrote 41 blocks to normalized/retention_periods.xlsx/
 ```
 
-Inspect what landed:
+Inspect what landed (output is layer-tagged JSON):
 
 ```bash
-$ uv run dks blocks list policies/claims_handling.pdf | head -5
-policies/claims_handling.pdf#p1
-policies/claims_handling.pdf#p10
-policies/claims_handling.pdf#p11
-policies/claims_handling.pdf#p12
-policies/claims_handling.pdf#p13
+$ uv run dks blocks list policies/claims_handling.pdf | head -10
+[
+  {"block_id": "policies/claims_handling.pdf#p1", "layer": "global"},
+  {"block_id": "policies/claims_handling.pdf#p10", "layer": "global"},
+  {"block_id": "policies/claims_handling.pdf#p14", "layer": "global"},
+  ...
+]
 
 $ uv run dks blocks get "policies/claims_handling.pdf#p14"
 {
-  "source_file": "policies/claims_handling.pdf",
-  "block_id": "policies/claims_handling.pdf#p14",
-  "locator": {
-    "kind": "pdf",
-    "page": 14,
-    "section": null,
-    "clause": null
+  "block": {
+    "source_file": "policies/claims_handling.pdf",
+    "block_id": "policies/claims_handling.pdf#p14",
+    "locator": {
+      "kind": "pdf",
+      "page": 14,
+      "section": null,
+      "clause": null
+    },
+    "block_type": "text",
+    "content": "3.2 Filing window. Claims must be filed within 30 days..."
   },
-  "block_type": "text",
-  "content": "3.2 Filing window. Claims must be filed within 30 days..."
+  "layer": "global"
 }
 ```
 
-Each block now carries an audit-grade citation primitive (`page`, optionally `section` / `clause` for PDFs; `sheet` + `cells` for Excels; etc.).
+Each block carries an audit-grade citation primitive (`page`, optionally `section` / `clause` for PDFs; `sheet` + `cells` for Excels; etc.) plus a `layer` tag showing which layer served the read.
 
 ---
 
@@ -346,20 +352,22 @@ Verify:
 ```bash
 $ uv run dks wiki read claim-filing-windows
 {
-  "topic": "Claim filing windows",
-  "slug": "claim-filing-windows",
-  "source_refs": [
-    "policies/claims_handling.pdf#p14#3.2",
-    "policies/claims_handling.pdf#p14#3.2.2",
-    "schedules/retention_periods.xlsx#sLife!B4:D4",
-    ...
-  ],
-  "compiled_at": "2026-05-22T01:34:00+00:00",
-  "body": "Claims must be filed within 30 days..."
+  "entry": {
+    "topic": "Claim filing windows",
+    "slug": "claim-filing-windows",
+    "source_refs": [
+      "policies/claims_handling.pdf#p14#3.2",
+      "policies/claims_handling.pdf#p14#3.2.2",
+      "schedules/retention_periods.xlsx#sLife!B4:D4"
+    ],
+    "compiled_at": "2026-05-22T01:34:00+00:00",
+    "body": "Claims must be filed within 30 days..."
+  },
+  "layer": "project"
 }
 ```
 
-Compile one entry per domain topic. The wiki is a discovery layer, not a mirror of the corpus.
+Compile one entry per domain topic. The wiki is a discovery layer, not a mirror of the corpus. To compile an entry meant for cross-project reuse (a company-wide rule), add `--write-global`; without it, the entry lives in the project layer and only that repo sees it.
 
 ---
 
@@ -375,15 +383,16 @@ Without `dks-search`, Claude Code would invent a filing-window rule (likely some
 > _(internally invokes `dks-search`)_
 > Let me check the KB for the filing-window rule.
 > _runs:_ `dks wiki search "filing window"`
-> _gets back the `claim-filing-windows` entry, sees the cited blocks_
+> _gets back the `claim-filing-windows` entry (layer: project), sees the cited blocks_
 > _runs:_ `dks blocks get "policies/claims_handling.pdf#p14#3.2"`
-> _gets the verbatim text: "Claims must be filed within 30 days..."_
+> _gets the verbatim text: "Claims must be filed within 30 days...", served from global_
 >
-> Here's the endpoint. Filing window validation enforces 30 days per the claims policy.
+> Here's the endpoint. Filing window validation enforces 30 days per the claims policy. The product-specific filing rule (in the project layer wiki) confirms this matches the company-wide policy at global.
 >
 > ```typescript
 > // Claim filing window: 30 days from incident
-> // Source: policies/claims_handling.pdf §3.2 (block_id: policies/claims_handling.pdf#p14#3.2)
+> // Source: policies/claims_handling.pdf §3.2 @ global
+> // Block: policies/claims_handling.pdf#p14#3.2
 > const MAX_FILING_DAYS = 30;
 >
 > function validateFilingDate(incidentDate: Date, filedDate: Date): ValidationResult {
@@ -396,9 +405,9 @@ Without `dks-search`, Claude Code would invent a filing-window rule (likely some
 > ```
 >
 > Sources:
-> - `policies/claims_handling.pdf#p14#3.2` — 30-day filing window
+> - `policies/claims_handling.pdf#p14#3.2` @ global — 30-day filing window
 >
-> Note: I did not find a KB entry for *late-filing exception handling* — if your service needs to support the subsection 3.2.2 extension path, the KB needs a wiki entry for it before I can ground that logic.
+> Note: I did not find a KB entry for *late-filing exception handling* — if your service needs to support the subsection 3.2.2 extension path, the KB needs a wiki entry for it before I can ground that logic. Consider compiling a project-layer entry if it's specific to this product line, or a global entry if it applies company-wide.
 
 Two things to notice:
 1. **The 30-day number is not invented** — it's the verbatim policy rule.
@@ -421,7 +430,7 @@ Claude Code will:
 4. Conservative scan for cross-entry contradictions.
 5. Produce a structured report.
 
-Sample report (clean run):
+Sample report (clean run, two layers active):
 
 ```
 ## Wiki lint report
@@ -432,14 +441,21 @@ Sample report (clean run):
 ### Inline-vs-source_refs drift
 (none)
 
+### Cross-layer citations
+- (project) entry `retention-exception`: cites `policies/claims_handling.pdf#p20#5.1` which resolves from the global layer (informational)
+
 ### Possible contradictions
 (none)
 
 ### Summary
-12 entries scanned, 0 broken citations, 0 drift issues, 0 possible contradictions.
+- 12 entries scanned (project: 3, global: 9)
+- 0 broken citations
+- 0 drift issues
+- 1 cross-layer citation (informational)
+- 0 possible contradictions
 ```
 
-A dirty run will name specific entries and `block_id`s — those are your fix targets, generally via re-running `dks-compile-wiki` on the affected slug.
+A dirty run will name specific entries and `block_id`s — those are your fix targets, generally via re-running `dks-compile-wiki` on the affected slug. Cross-layer citations (a project entry citing a global block, or vice versa) are informational, not bugs — but worth knowing when reviewing what a wiki entry actually depends on.
 
 ---
 
