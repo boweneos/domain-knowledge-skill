@@ -1,14 +1,10 @@
-"""Writer — persists NormalizedBlocks to disk.
-
-Layout: <output_dir>/<source_basename>/<safe_block_filename>.md
-where source_basename is the relative source path with separators preserved as
-folder structure under output_dir.
-"""
+"""Writer — persists NormalizedBlocks to disk under a KbLayer's normalized_dir."""
 
 from collections.abc import Iterable
 from pathlib import Path
 
 from dks.block import NormalizedBlock, to_markdown
+from dks.layers import KbLayer
 
 
 def safe_filename(s: str) -> str:
@@ -16,8 +12,9 @@ def safe_filename(s: str) -> str:
     return s.replace("/", "__").replace("#", "__")
 
 
-def write_blocks(blocks: Iterable[NormalizedBlock], output_dir: Path) -> list[Path]:
-    output_dir = Path(output_dir)
+def write_blocks(blocks: Iterable[NormalizedBlock], layer: KbLayer) -> list[Path]:
+    """Persist blocks to `<layer.normalized_dir>/<source_basename>/<safe_id>.md`."""
+    output_dir = layer.normalized_dir
     written: list[Path] = []
     for block in blocks:
         source_basename = Path(block.source_file).name

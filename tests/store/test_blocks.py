@@ -4,54 +4,84 @@ import pytest
 
 from dks.block import NormalizedBlock
 from dks.blockref import encode_blockref
+from dks.layers import KbLayer, KbLayers
 from dks.locators import MarkdownLocator
-from dks.store.blocks import get_block, list_blocks
+from dks.store.blocks import BlockHit, get_block, list_blocks
 from dks.writer import write_blocks
 
 
-def _seed(tmp_path: Path) -> Path:
-    loc1 = MarkdownLocator(heading_path=[], line_start=1, line_end=1)
-    loc2 = MarkdownLocator(heading_path=[], line_start=3, line_end=3)
-    blocks = [
-        NormalizedBlock(
-            source_file="claims.md",
-            block_id=encode_blockref("claims.md", loc1),
-            locator=loc1,
-            block_type="text",
-            content="first",
-        ),
-        NormalizedBlock(
-            source_file="claims.md",
-            block_id=encode_blockref("claims.md", loc2),
-            locator=loc2,
-            block_type="text",
-            content="second",
-        ),
-    ]
-    write_blocks(blocks, output_dir=tmp_path)
-    return tmp_path
+def _layer(name: str, root: Path) -> KbLayer:
+    return KbLayer(name=name, base=root)
 
 
-def test_list_blocks_for_source(tmp_path):
-    _seed(tmp_path)
-    ids = list_blocks(normalized_dir=tmp_path, source_file="claims.md")
-    assert sorted(ids) == ["claims.md#L1-1", "claims.md#L3-3"]
+def _block(source: str, start: int, end: int, content: str) -> NormalizedBlock:
+    loc = MarkdownLocator(heading_path=[], line_start=start, line_end=end)
+    return NormalizedBlock(
+        source_file=source,
+        block_id=encode_blockref(source, loc),
+        locator=loc,
+        block_type="text",
+        content=content,
+    )
 
 
-def test_list_blocks_for_unknown_source(tmp_path):
-    _seed(tmp_path)
-    assert list_blocks(normalized_dir=tmp_path, source_file="nope.md") == []
+def _seed(layer: KbLayer, source: str, content_pairs: list[tuple[int, int, str]]) -> None:
+    blocks = [_block(source, s, e, c) for s, e, c in content_pairs]
+    write_blocks(blocks, layer)
 
 
-def test_get_block_returns_full_block(tmp_path):
-    _seed(tmp_path)
-    block = get_block(normalized_dir=tmp_path, block_id="claims.md#L1-1")
-    assert block.content == "first"
-    assert isinstance(block.locator, MarkdownLocator)
-    assert block.locator.line_start == 1
+def test_list_blocks_project_only(tmp_path):
+    proj = _layer("project", tmp_path / "p")
+    layers = KbLayers(project=proj, global_layer=None)
+    _seed(proj, "claims.md", [(1, 1, "a"), (3, 3, "b")])
+    hits = list_blocks(layers, source_file="claims.md")
+    assert sorted(h.block_id for h in hits) == ["claims.md#L1-1", "claims.md#L3-3"]
+    assert all(h.layer == "project" for h in hits)
+
+
+def test_list_blocks_global_only(tmp_path):
+    glb = _layer("global", tmp_path / "g")
+    layers = KbLayers(project=None, global_layer=glb)
+    _seed(glb, "claims.md", [(1, 1, "a")])
+    [hit] = list_blocks(layers, source_file="claims.md")
+    assert hit.block_id == "claims.md#L1-1"
+    assert hit.layer == "global"
+
+
+def test_list_blocks_merges_layers(tmp_path):
+    proj = _layer("project", tmp_path / "p")
+    glb = _layer("global", tmp_path / "g")
+    layers = KbLayers(project=proj, global_layer=glb)
+    _seed(proj, "claims.md", [(1, 1, "proj-1")])
+    _seed(glb, "claims.md", [(1, 1, "glob-1"), (3, 3, "glob-3")])
+    hits = list_blocks(layers, source_file="claims.md")
+    by_id = {h.block_id: h.layer for h in hits}
+    assert by_id["claims.md#L1-1"] == "project"  # project shadows
+    assert by_id["claims.md#L3-3"] == "global"
+
+
+def test_get_block_project_wins(tmp_path):
+    proj = _layer("project", tmp_path / "p")
+    glb = _layer("global", tmp_path / "g")
+    layers = KbLayers(project=proj, global_layer=glb)
+    _seed(proj, "claims.md", [(1, 1, "proj-content")])
+    _seed(glb, "claims.md", [(1, 1, "global-content")])
+    block, layer_name = get_block(layers, block_id="claims.md#L1-1")
+    assert block.content == "proj-content"
+    assert layer_name == "project"
+
+
+def test_get_block_falls_back_to_global(tmp_path):
+    proj = _layer("project", tmp_path / "p")
+    glb = _layer("global", tmp_path / "g")
+    layers = KbLayers(project=proj, global_layer=glb)
+    _seed(glb, "claims.md", [(7, 9, "only-global")])
+    block, layer_name = get_block(layers, block_id="claims.md#L7-9")
+    assert block.content == "only-global"
+    assert layer_name == "global"
 
 
 def test_get_block_missing_raises(tmp_path):
-    _seed(tmp_path)
+    layers = KbLayers(project=_layer("project", tmp_path / "p"), global_layer=None)
     with pytest.raises(FileNotFoundError):
-        get_block(normalized_dir=tmp_path, block_id="claims.md#L99-99")
+        get_block(layers, block_id="absent.md#L1-1")
