@@ -21,34 +21,33 @@ When Claude Code (or any consumer agent) writes code that touches regulated logi
 ## Quick start (5 minutes)
 
 ```bash
-# 1. Clone and install
+# 1. Clone and install the Python package
 git clone git@github.com:boweneos/domain-knowledge-skill.git
 cd domain-knowledge-skill
 uv sync --all-groups
 
-# 2. Install the Claude Code skills locally
-mkdir -p ~/.claude/skills
-cp -r skills/dks-search skills/dks-build-pageindex \
-      skills/dks-compile-wiki skills/dks-lint-wiki \
-      ~/.claude/skills/
+# 2. Install as a Claude Code plugin (one command)
+claude plugin install .
+#    Alternatively (manual fallback):
+#      mkdir -p ~/.claude/skills && cp -r skills/* ~/.claude/skills/
 
 # 3. Drop your domain docs into raw/
-mkdir -p raw
+mkdir -p raw/policies
 cp /path/to/your/policy.pdf raw/policies/claims_handling.pdf
 
-# 4. Ingest
-uv run dks ingest raw/policies/claims_handling.pdf
-# → wrote N blocks to normalized/claims_handling.pdf/
+# 4. Ingest — via Claude Code slash command or the CLI directly
+#    From Claude Code:  /dks:ingest raw/policies/claims_handling.pdf
+#    Or from a shell:   uv run dks ingest raw/policies/claims_handling.pdf
+# → wrote N blocks to normalized/policies/claims_handling.pdf/
 
-# 5. From Claude Code, build the PageIndex tree and compile a wiki entry
-#    (Claude Code invokes the skills; the skills invoke the dks CLI)
-#
-#    Prompt Claude Code: "Use dks-build-pageindex on policies/claims_handling.pdf"
-#    Then:               "Use dks-compile-wiki to write a topic article on
-#                         claim filing windows from claims_handling.pdf"
+# 5. Build PageIndex + compile your first wiki entry (all from Claude Code)
+#    /dks:build-pageindex policies/claims_handling.pdf
+#    /dks:compile-wiki "Claim filing windows" claim-filing-windows policies/claims_handling.pdf
 ```
 
-Once `wiki/` has entries, any future Claude Code session that has `dks-search` loaded will ground its facts in citable source when the topic warrants it.
+Once `wiki/` has entries, any future Claude Code session has two paths in:
+- **Auto-activation** — the `dks-search` skill triggers when you work on regulated code.
+- **Explicit** — `/dks:search "<query>"` whenever you want grounding on demand.
 
 ---
 
@@ -96,7 +95,11 @@ Once `wiki/` has entries, any future Claude Code session that has `dks-search` l
 
 ---
 
-## Skills cheat-sheet
+## Skills + commands cheat-sheet
+
+The plugin ships **four skills** (auto-activated by Claude Code when conversation context matches) and **five slash commands** (explicit user-triggered).
+
+### Skills (auto-activated)
 
 | Skill | When to invoke | What it does |
 |---|---|---|
@@ -105,7 +108,17 @@ Once `wiki/` has entries, any future Claude Code session that has `dks-search` l
 | `dks-compile-wiki` | When a domain topic deserves a reusable article (e.g. "PII fields requiring encryption") | Gathers relevant blocks, composes a Markdown article with inline `[ref: <block_id>]` citations on every claim, writes to `wiki/<slug>.md`. |
 | `dks-lint-wiki` | Periodically or after re-ingesting sources | Walks every wiki entry, verifies every cited `block_id` still exists, surfaces drift and possible contradictions. Read-only. |
 
-How to invoke from Claude Code: load the skills into `~/.claude/skills/`, then ask Claude Code to use them by name in conversation. The skill prompts tell Claude Code exactly which CLI calls to make.
+### Commands (explicit slash invocation)
+
+| Command | Args | What it triggers |
+|---|---|---|
+| `/dks:ingest` | `<path-to-source-file>` | Runs the `dks ingest` CLI; suggests a next step based on the source shape. |
+| `/dks:build-pageindex` | `<source_file>` | Invokes `dks-build-pageindex` skill. |
+| `/dks:compile-wiki` | `<topic> <slug> [<source_file>...]` | Invokes `dks-compile-wiki` skill. |
+| `/dks:search` | `<topic or query>` | Invokes `dks-search` skill explicitly (skill also auto-activates from conversation context). |
+| `/dks:lint` | _(no args)_ | Invokes `dks-lint-wiki` skill — corpus-wide audit. |
+
+**When to use which:** Let Claude Code auto-activate skills during free-form work on regulated code. Reach for `/dks:*` commands when you want explicit control — kicking off a batch ingestion, building an index right after dropping in a doc, or running lint on a schedule.
 
 ---
 
