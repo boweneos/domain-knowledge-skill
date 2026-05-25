@@ -1,11 +1,21 @@
 ---
 name: dks-lint-wiki
 description: Scan compiled wiki entries for broken citations, contradictions, and stale references. Use periodically or after re-ingesting source documents.
+argument-hint: ""
 ---
 
 # dks-lint-wiki
 
 You audit the compiled wiki for citation integrity and consistency. This skill is read-only — it reports, it does not edit.
+
+## When NOT to use this skill
+
+Skip this skill when:
+- The wiki is empty (`dks wiki list` returns nothing). There's nothing to lint.
+- The user wants the lint to also fix issues — it doesn't. Lint reports; fixes are a separate human-judgment step (re-run `dks-compile-wiki` on affected slugs).
+- The user is debugging one specific wiki entry — use `dks wiki read <slug>` + `dks blocks get` directly rather than a full corpus scan.
+
+Lint is a corpus-wide audit pass. Run it after a re-ingest, on a schedule, or before relying on the wiki for high-stakes downstream work — not for routine in-session debugging.
 
 ## Procedure
 
