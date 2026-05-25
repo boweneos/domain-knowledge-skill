@@ -21,28 +21,35 @@ When Claude Code (or any consumer agent) writes code that touches regulated logi
 ## Quick start (5 minutes)
 
 ```bash
-# 1. Clone and install the Python package
+# 1. Clone the repo and install the Python package
 git clone git@github.com:boweneos/domain-knowledge-skill.git
 cd domain-knowledge-skill
 uv sync --all-groups
+```
 
-# 2. Install as a Claude Code plugin (one command)
-claude plugin install .
-#    Alternatively (manual fallback):
-#      mkdir -p ~/.claude/skills && cp -r skills/* ~/.claude/skills/
+```text
+# 2. Install as a Claude Code plugin — run these inside a Claude Code session
+/plugin marketplace add boweneos/domain-knowledge-skill
+/plugin install dks@domain-knowledge-skill
+#  Verify with: /plugin    (Installed tab should show "dks")
+#  Alternatives (local dev, manual fallback): see docs/USAGE.md → Installation.
+```
 
+```bash
 # 3. Drop your domain docs into raw/
 mkdir -p raw/policies
 cp /path/to/your/policy.pdf raw/policies/claims_handling.pdf
+```
 
-# 4. Ingest — via Claude Code slash command or the CLI directly
-#    From Claude Code:  /dks:ingest raw/policies/claims_handling.pdf
-#    Or from a shell:   uv run dks ingest raw/policies/claims_handling.pdf
-# → wrote N blocks to normalized/policies/claims_handling.pdf/
+```text
+# 4. Ingest — slash command from inside Claude Code, or CLI from a shell
+/dks:ingest raw/policies/claims_handling.pdf
+#  → wrote N blocks to normalized/policies/claims_handling.pdf/
+#  CLI equivalent: uv run dks ingest raw/policies/claims_handling.pdf
 
 # 5. Build PageIndex + compile your first wiki entry (all from Claude Code)
-#    /dks:build-pageindex policies/claims_handling.pdf
-#    /dks:compile-wiki "Claim filing windows" claim-filing-windows policies/claims_handling.pdf
+/dks:build-pageindex policies/claims_handling.pdf
+/dks:compile-wiki "Claim filing windows" claim-filing-windows policies/claims_handling.pdf
 ```
 
 Once `wiki/` has entries, any future Claude Code session has two paths in:

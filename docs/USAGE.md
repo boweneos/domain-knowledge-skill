@@ -6,25 +6,108 @@ The session is annotated so you can map each step to either the **deterministic 
 
 ---
 
-## Setup (one-time)
+## Installation
+
+`dks` has **two halves** that install separately:
+1. The **Python package** (`dks` CLI: ingest, blocks, pageindex, wiki, wiki search) — installed via `uv`.
+2. The **Claude Code plugin** (4 skills + 5 slash commands) — installed via Claude Code's `/plugin` machinery.
+
+### Half 1 — Python package
 
 ```bash
 git clone git@github.com:boweneos/domain-knowledge-skill.git
 cd domain-knowledge-skill
 uv sync --all-groups
+uv run dks --help     # smoke check
+uv run pytest         # full suite — 81 passing expected
+```
 
+The CLI is then runnable as `uv run dks ...` from the project root, or you can `uv pip install -e .` into a venv on your PATH if you want a global `dks` binary.
+
+### Half 2 — Claude Code plugin
+
+Choose one of three paths.
+
+#### Path A — Marketplace install from GitHub (recommended, persistent)
+
+Inside a Claude Code session:
+
+```text
+/plugin marketplace add boweneos/domain-knowledge-skill
+/plugin install dks@domain-knowledge-skill
+```
+
+The first command registers the GitHub repo as a marketplace; the second installs the `dks` plugin from it. The plugin is persistent across sessions and **auto-updates daily by default** (disable in `/plugin` → Marketplaces tab → toggle Enable auto-update).
+
+Verify:
+```text
+/plugin            # Installed tab should list "dks"
+```
+
+#### Path B — Local-directory install (dev/testing, non-persistent)
+
+Useful when you're iterating on the plugin contents locally and want changes to load without a marketplace round-trip.
+
+```bash
+# Launch Claude Code with the plugin directory pre-loaded
+claude --plugin-dir /Users/bowen.li/development/KB
+```
+
+Or, if Claude Code is already running:
+```text
+/reload-plugins
+```
+after pointing it at the local directory. This install does **not** persist across sessions — re-pass `--plugin-dir` next launch.
+
+#### Path C — Manual skill copy (skills only, no commands)
+
+Falls back when `/plugin` machinery isn't available (e.g. older Claude Code versions). You lose the `/dks:*` slash commands but keep skill auto-activation.
+
+```bash
 mkdir -p ~/.claude/skills
 cp -r skills/dks-search skills/dks-build-pageindex \
       skills/dks-compile-wiki skills/dks-lint-wiki \
       ~/.claude/skills/
 ```
 
-Verify the install:
+### Verifying everything wired up
 
-```bash
-uv run dks --help
-uv run pytest         # 81 passing
+After Path A or B, in a Claude Code session:
+
+```text
+/plugin                          # → Installed tab lists "dks"
+/dks:search "test"               # → should invoke the search skill (likely with empty wiki, abstains)
 ```
+
+After Path C:
+
+> Ask Claude Code: "Use the dks-search skill on the topic 'test'."
+
+The skill should activate by name (no slash command available on Path C).
+
+### Updating
+
+```text
+/plugin marketplace update domain-knowledge-skill
+```
+
+Or wait for the daily auto-update (Path A only).
+
+### Uninstall
+
+```text
+/plugin uninstall dks@domain-knowledge-skill
+/plugin marketplace remove domain-knowledge-skill   # optional, drops the marketplace too
+```
+
+For Path C, just `rm -rf ~/.claude/skills/dks-*`.
+
+### Common pitfalls
+
+- **Skills + commands must live at plugin root, not under `.claude-plugin/`.** Our layout is correct (`skills/` and `commands/` at the top level); only `plugin.json` and `marketplace.json` live under `.claude-plugin/`. If you fork and restructure, keep skills/commands at root or they won't be discovered.
+- **Command-name collisions are global.** Slash commands (`/dks:*`) are namespaced by plugin name, so collisions with other plugins are rare. Skills are namespaced by skill name (`dks-search`); pick names other plugins are unlikely to use.
+- **Version pinning matters for updates.** `.claude-plugin/plugin.json` carries a `version` field. Bump it when shipping behaviour changes — that's the signal Claude Code uses to surface "update available". Without a version bump, the auto-updater treats commit SHAs as the version key and any push re-pulls.
+- **The Python and plugin halves are independent.** Path A installs the plugin but does NOT install the `dks` Python CLI — skills shell out to `dks`, so the CLI must be on PATH (or `uv run dks` from a known directory) for them to work. Always do Half 1 before relying on the skills in anger.
 
 ---
 
