@@ -27,7 +27,7 @@ The user names:
 
 ## Procedure
 
-1. **Gather blocks.** For each source_file, run `dks blocks list <source>`. For each `block_id` (whether from the user or from the list), run `dks blocks get <block_id>` and capture the JSON.
+1. **Gather blocks.** For each source_file, run `dks blocks list <source>`. This returns a JSON array of `{"block_id": "...", "layer": "..."}` objects (not a flat list of strings) — extract the `block_id` values and note their layers. For each `block_id` (whether from the user or from the list), run `dks blocks get <block_id>`. This returns `{"block": {...}, "layer": "..."}` — use `.block` for the block content and note `.layer` for citation tagging.
 
 2. **Compose the article.** Write a Markdown article on the topic. Rules:
    - Every factual statement must end with an inline citation: `[ref: <block_id>]`.
@@ -36,6 +36,10 @@ The user names:
    - Use the canonical `block_id` strings exactly as returned by the CLI. Do not abbreviate or rewrite them.
    - Open with a short summary paragraph (1–2 sentences) of the topic before going into specifics.
    - Use H2/H3 to organize sub-topics if the material warrants it. Don't add an H1 — the wiki frontmatter carries the topic.
+   - **Layer disambiguation in citations:** Adding `@ layer` to inline citations is optional for single-layer articles but **recommended when the article cites blocks from both layers** — the divergence matters to the reader. Example:
+     ```
+     Customer details must be encrypted at rest [ref: pii.pdf#p3 @ global], with the additional product-specific exception that minor accounts may use deferred encryption [ref: product-exceptions.md#L12-18 @ project].
+     ```
 
 3. **Collect the unique source_refs.** Extract every distinct `block_id` you cited; that is the `source_refs` list.
 
@@ -51,6 +55,10 @@ The user names:
    ```bash
    echo '<json>' | dks wiki write <slug>
    ```
+   By default the entry writes to the **project** layer. To write a company-wide article that should be reusable across projects, add `--write-global`:
+   ```bash
+   echo '<json>' | dks wiki write --write-global <slug>
+   ```
 
 5. **Report.** Tell the user the slug, the path written, the source_ref count, and the article length in words.
 
@@ -61,6 +69,7 @@ The user names:
 - **No silent block dropping.** If a block in the user-provided set is irrelevant to the topic, you may exclude it from `source_refs`, but tell the user in your report which blocks were excluded and why.
 - **Slug discipline.** The slug becomes a filename. Reject slugs with `/`, spaces, uppercase, or non-ASCII characters. Ask the user for a fixed slug if theirs is invalid; don't silently normalize.
 - **No editing existing wiki entries.** This skill only writes new entries. If the slug already exists, the write will overwrite it — confirm with the user before doing so.
+- **Cross-layer citation visibility.** If you cite blocks from BOTH layers in one article, include `@ layer` on at least the project citations so the layer divergence is visible to the reader.
 
 ## Cost guidance
 

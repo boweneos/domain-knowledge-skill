@@ -23,19 +23,19 @@ Lint is a corpus-wide audit pass. Run it after a re-ingest, on a schedule, or be
    ```bash
    dks wiki list
    ```
-   This prints one slug per line.
+   This returns a JSON array of `{"slug": "...", "layer": "..."}` objects (not a flat list of slugs). Iterate over these objects; the `layer` field tells you which layer owns each slug after shadowing (a project entry shadows a global entry with the same slug).
 
 2. **For each entry,** run:
    ```bash
    dks wiki read <slug>
    ```
-   From the result, capture `topic`, `source_refs`, and `body`.
+   This returns `{"entry": {...}, "layer": "..."}`. From `.entry`, capture `topic`, `source_refs`, and `body`. Record the `.layer` of the entry — you'll need it for the report and cross-layer checks.
 
 3. **Per-entry checks:**
-   - For every `block_id` in `source_refs`, run `dks blocks get <block_id>`. If it returns a non-zero exit code or an error, record this as a **broken citation**.
+   - For every `block_id` in `source_refs`, run `dks blocks get <block_id>`. If it returns a non-zero exit code or an error, record this as a **broken citation** (noting the entry's layer). If the block resolves successfully, note the `.layer` returned — if the entry's layer is `project` but the block's layer is `global`, record this as a **cross-layer citation** (informational).
    - Extract every inline `[ref: <block_id>]` from the body. For each:
-     - If the cited block_id is NOT in `source_refs`, record as **inline drift (cited but not in source_refs)**.
-   - For every `block_id` in `source_refs` that does NOT appear in any inline `[ref: ...]` in the body, record as **inline drift (in source_refs but not cited in body)**.
+     - If the cited block_id is NOT in `source_refs`, record as **inline drift (cited but not in source_refs)** (noting the entry's layer).
+   - For every `block_id` in `source_refs` that does NOT appear in any inline `[ref: ...]` in the body, record as **inline drift (in source_refs but not cited in body)** (noting the entry's layer).
 
 4. **Cross-entry contradiction scan.** Read each entry's body. Flag any pair of entries that make directly opposing factual claims on the same narrow topic (e.g., entry A says "30 days" and entry B says "60 days" without versioning context). Be conservative — only flag direct, factual conflicts. Same word ≠ contradiction.
 
@@ -44,20 +44,25 @@ Lint is a corpus-wide audit pass. Run it after a re-ingest, on a schedule, or be
    ## Wiki lint report
 
    ### Broken citations
-   - entry `<slug>`: block_id `<id>` no longer exists
+   - (project) entry `<slug>`: block_id `<id>` no longer exists in any layer
+   - (global) entry `<slug>`: block_id `<id>` no longer exists in any layer
 
    ### Inline-vs-source_refs drift
-   - entry `<slug>`: body cites `<id>` but it isn't in source_refs
-   - entry `<slug>`: source_refs lists `<id>` but body never cites it
+   - (project) entry `<slug>`: body cites `<id>` but it isn't in source_refs
+   - (global) entry `<slug>`: source_refs lists `<id>` but body never cites it
+
+   ### Cross-layer citations
+   - (project) entry `<slug>`: cites `<id>` which resolves from the global layer (informational)
 
    ### Possible contradictions
-   - `<slug-a>` says "<claim>" [<id>] but `<slug-b>` says "<other>" [<id>] — same topic area
+   - (project) `<slug-a>` says "<claim>" [<id> @ project] but (global) `<slug-b>` says "<other>" [<id> @ global] — same topic area
 
    ### Summary
-   - N entries scanned
+   - N entries scanned (project: P, global: G)
    - X broken citations
    - Y drift issues
-   - Z possible contradictions
+   - Z cross-layer citations
+   - W possible contradictions
    ```
 
    If a section has zero items, write `(none)` rather than omitting it — that makes "everything is clean" visually obvious.

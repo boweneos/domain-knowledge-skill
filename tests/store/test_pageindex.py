@@ -1,35 +1,45 @@
 import pytest
 
+from dks.layers import KbLayer, KbLayers
 from dks.store.pageindex import read_pageindex, write_pageindex
 
 
-def test_write_and_read_roundtrip(tmp_path):
-    tree = {
-        "title": "Claims Handling",
-        "block_ids": [],
-        "children": [
-            {
-                "title": "Filing Window",
-                "block_ids": ["claims.pdf#p1#1.1"],
-                "children": [],
-            }
-        ],
-    }
-    target = write_pageindex(tmp_path, source_file="claims.pdf", tree=tree)
-    assert target.exists()
-    loaded = read_pageindex(tmp_path, source_file="claims.pdf")
+def _layer(name, base):
+    return KbLayer(name=name, base=base)
+
+
+def test_write_and_read_one_layer(tmp_path):
+    proj = _layer("project", tmp_path / "p")
+    layers = KbLayers(project=proj, global_layer=None)
+    tree = {"title": "T", "block_ids": [], "children": []}
+    write_pageindex(proj, source_file="a.pdf", tree=tree)
+    loaded, layer = read_pageindex(layers, source_file="a.pdf")
     assert loaded == tree
+    assert layer == "project"
+
+
+def test_project_shadows_global(tmp_path):
+    proj = _layer("project", tmp_path / "p")
+    glb = _layer("global", tmp_path / "g")
+    layers = KbLayers(project=proj, global_layer=glb)
+    write_pageindex(glb, source_file="a.pdf", tree={"title": "global", "block_ids": [], "children": []})  # noqa: E501
+    write_pageindex(proj, source_file="a.pdf", tree={"title": "project", "block_ids": [], "children": []})  # noqa: E501
+    loaded, layer = read_pageindex(layers, source_file="a.pdf")
+    assert loaded["title"] == "project"
+    assert layer == "project"
+
+
+def test_read_falls_back_to_global(tmp_path):
+    proj = _layer("project", tmp_path / "p")
+    glb = _layer("global", tmp_path / "g")
+    layers = KbLayers(project=proj, global_layer=glb)
+    write_pageindex(glb, source_file="b.pdf", tree={"title": "G", "block_ids": [], "children": []})
+    loaded, layer = read_pageindex(layers, source_file="b.pdf")
+    assert loaded["title"] == "G"
+    assert layer == "global"
 
 
 def test_read_missing_raises(tmp_path):
+    layers = KbLayers(project=_layer("project", tmp_path / "p"), global_layer=None)
     with pytest.raises(FileNotFoundError):
-        read_pageindex(tmp_path, source_file="absent.pdf")
-
-
-def test_write_creates_index_dir_if_missing(tmp_path):
-    nested = tmp_path / "index"
-    assert not nested.exists()
-    write_pageindex(
-        nested, source_file="a.pdf", tree={"title": "x", "block_ids": [], "children": []}
-    )
-    assert nested.exists()
+        read_pageindex(layers, source_file="absent.pdf")

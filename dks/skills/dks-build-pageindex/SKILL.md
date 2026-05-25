@@ -20,7 +20,7 @@ If you're not sure whether a source warrants a tree, run `dks blocks list <sourc
 
 ## Input
 
-The user names a `source_file` (e.g. `policies/claims_handling.pdf`). They may also override `--normalized-dir` and `--index-dir`; default both to the project's `normalized/` and `index/`.
+The user names a `source_file` (e.g. `policies/claims_handling.pdf`). Layer flags (`--project`, `--global`, `--no-global`) are available on the root `dks` command but are not needed for typical use — the CLI auto-discovers the project layer and falls back to `~/.dks/` for the global layer.
 
 ## Procedure
 
@@ -28,13 +28,13 @@ The user names a `source_file` (e.g. `policies/claims_handling.pdf`). They may a
    ```bash
    dks blocks list "$SOURCE_FILE"
    ```
-   This prints one `block_id` per line.
+   This returns a JSON array of objects, each with `block_id` and `layer` (e.g. `[{"block_id": "claims.pdf#p1#1", "layer": "project"}, ...]`). Extract the `block_id` values to drive the next step. Note the `layer` values — you'll use them when deciding where to write the tree (see step 4).
 
 2. **Fetch every block's content.** For each `block_id`, run:
    ```bash
    dks blocks get "$BLOCK_ID"
    ```
-   This prints the block as JSON. Capture each block's `content`, `block_type`, and `locator`.
+   This returns a JSON object with two top-level fields: `.block` (the full block JSON with `content`, `block_type`, `locator`, etc.) and `.layer` (which layer resolved this block). Use `.block.content`, `.block.block_type`, and `.block.locator` for the tree-building step below.
 
 3. **Reason over the structure.** Headings (`block_type == "heading"`) define section boundaries; text/table/list/code blocks belong to the most recent heading. Build a tree where each node has:
    - `title`: the heading text (or a synthesized title for the root)
@@ -54,6 +54,11 @@ The user names a `source_file` (e.g. `policies/claims_handling.pdf`). They may a
    ```bash
    echo '<json-tree>' | dks pageindex write "$SOURCE_FILE"
    ```
+   By default the tree writes to the **project** layer (when a project is present). To build a global-scoped tree shared across projects, add `--write-global`:
+   ```bash
+   echo '<json-tree>' | dks pageindex write --write-global "$SOURCE_FILE"
+   ```
+   Most users want the project default.
 
 5. **Report back.** Tell the user the path the tree was written to and a one-line summary (top-level section count, deepest nesting depth, total nodes).
 
@@ -62,7 +67,8 @@ The user names a `source_file` (e.g. `policies/claims_handling.pdf`). They may a
 - **Never invent block_ids.** Only assign `block_id`s that were returned by `dks blocks list`. If a block's content suggests it belongs somewhere unexpected, still place it; the tree reflects the document, not your judgment about correctness.
 - **Every block_id must appear in the tree exactly once.** If a block has no preceding heading, place it under a synthetic root node.
 - **Don't summarize the content.** This skill produces structure, not summaries. The `dks-compile-wiki` skill is where summarization happens.
-- **Fail loudly.** If `dks blocks list` returns nothing, tell the user the source hasn't been ingested yet — don't fabricate a tree.
+- **Fail loudly.** If `dks blocks list` returns an empty array, tell the user the source hasn't been ingested yet — don't fabricate a tree.
+- **Layer placement heuristic.** When blocks come from mixed layers, prefer to write the tree into the layer that owns the majority of the blocks: build globally (use `--write-global`) for sources where all or most blocks resolve from the `global` layer; use the default project write for anything that touches a project block. This keeps the index colocated with its data.
 
 ## Cost guidance
 

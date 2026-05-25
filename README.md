@@ -206,6 +206,7 @@ Use `--help` on any subcommand for flags and defaults.
 - **Compiled wiki** for discovery — every claim in every wiki article carries inline `[ref: <block_id>]` citations.
 - **Two-tool consumer contract** — `dks wiki search` (discovery) + `dks blocks get` (fact substrate). Citation is the only path to a fact.
 - **File-over-app storage**, git-tracked, audit-friendly.
+- **Two-layer KB**: global `~/.dks/` (cross-project rules) + auto-discovered project `.dks/` (overrides and additions). Project shadows global on reads; writes default to project. See [`docs/USAGE.md` → Cascaded KB layers](docs/USAGE.md#cascaded-kb-layers).
 
 No vector embeddings, no entity graph, no adaptive retrieval dispatcher in v0. Each is a deferred extension that can plug into the existing seams when eval evidence demands it.
 
