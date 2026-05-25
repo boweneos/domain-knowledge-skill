@@ -28,11 +28,19 @@ uv sync --all-groups
 ```
 
 ```text
-# 2. Install as a Claude Code plugin — run these inside a Claude Code session
+# 2. Install as a Claude Code plugin — run inside a Claude Code session.
+#    Pick ONE of these two paths.
+
+# 2a. Local install (no GitHub required — works with your clone directly):
+/plugin marketplace add /Users/bowen.li/development/KB
+/plugin install dks@dks
+
+# 2b. GitHub install (persistent + auto-updating from the public repo):
 /plugin marketplace add boweneos/domain-knowledge-skill
-/plugin install dks@domain-knowledge-skill
-#  Verify with: /plugin    (Installed tab should show "dks")
-#  Alternatives (local dev, manual fallback): see docs/USAGE.md → Installation.
+/plugin install dks@dks
+
+#  Verify either: /plugin    (Installed tab should list "dks")
+#  Full installation reference (dev mode, manual fallback): docs/USAGE.md → Installation.
 ```
 
 ```bash

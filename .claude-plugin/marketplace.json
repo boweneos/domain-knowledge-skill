@@ -1,8 +1,14 @@
 {
+  "name": "dks",
+  "owner": {
+    "name": "Bowen Li",
+    "url": "https://github.com/boweneos"
+  },
   "plugins": [
     {
       "name": "dks",
-      "repository": "https://github.com/boweneos/domain-knowledge-skill",
+      "displayName": "DKS — Domain Knowledge Skill",
+      "source": "./dks",
       "description": "Citation-grounded knowledge skill for AI coding agents in regulated life-insurance contexts. Ingests domain docs (PDF/DOCX/Excel/Markdown), compiles citation-preserving wiki articles, and grounds consumer code with structurally-enforced citation discipline."
     }
   ]
