@@ -1,12 +1,10 @@
-"""PageIndex tree storage — sidecar JSON per source document.
-
-Schema is intentionally loose; the producer (the `dks-build-pageindex` skill)
-owns the tree shape. Storage just persists/reads.
-"""
+"""PageIndex tree storage — sidecar JSON per source document, layer-aware."""
 
 import json
 from pathlib import Path
 from typing import Any, cast
+
+from dks.layers import KbLayer, KbLayers
 
 
 def _target(index_dir: Path, source_file: str) -> Path:
@@ -14,17 +12,18 @@ def _target(index_dir: Path, source_file: str) -> Path:
     return index_dir / f"{basename}.pageindex.json"
 
 
-def write_pageindex(index_dir: Path, source_file: str, tree: dict[str, Any]) -> Path:
-    """Persist `tree` as a sidecar JSON file. Returns the path written."""
-    index_dir.mkdir(parents=True, exist_ok=True)
-    target = _target(index_dir, source_file)
+def write_pageindex(layer: KbLayer, source_file: str, tree: dict[str, Any]) -> Path:
+    """Persist `tree` to the given layer."""
+    layer.index_dir.mkdir(parents=True, exist_ok=True)
+    target = _target(layer.index_dir, source_file)
     target.write_text(json.dumps(tree, indent=2))
     return target
 
 
-def read_pageindex(index_dir: Path, source_file: str) -> dict[str, Any]:
-    """Load and return the JSON tree for `source_file`."""
-    target = _target(index_dir, source_file)
-    if not target.exists():
-        raise FileNotFoundError(f"no PageIndex for {source_file!r} at {target}")
-    return cast(dict[str, Any], json.loads(target.read_text()))
+def read_pageindex(layers: KbLayers, source_file: str) -> tuple[dict[str, Any], str]:
+    """Read tree + which layer served it. Project first, fall back to global."""
+    for layer in layers.for_read():
+        target = _target(layer.index_dir, source_file)
+        if target.exists():
+            return cast(dict[str, Any], json.loads(target.read_text())), layer.name
+    raise FileNotFoundError(f"no PageIndex for {source_file!r} in any layer")
