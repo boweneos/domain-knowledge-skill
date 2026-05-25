@@ -1,11 +1,22 @@
 ---
 name: dks-compile-wiki
 description: Compile a citation-preserving wiki article on a domain topic from normalized blocks. Use when the user wants to summarize a body of evidence into a topic article that consumer agents can read for discovery. Every claim in the output must cite a block_id.
+argument-hint: "<topic> <slug> [<source_file>...]"
 ---
 
 # dks-compile-wiki
 
 You compile a Markdown article on a domain topic from a set of normalized source blocks. Every factual claim in the article must include an inline citation to a `block_id`.
+
+## When NOT to use this skill
+
+Skip this skill for:
+- Topics with no normalized blocks backing them — compile would have nothing to cite. Ingest the source first.
+- One-off questions that don't deserve a reusable wiki entry (use `dks-search` directly instead of compiling).
+- Topics that mirror a single source 1:1 — the wiki is for cross-source topic synthesis, not for re-summarising one document. If a topic only ever cites one source, the original source is the better artifact.
+- Personal notes or draft content — wiki entries are part of the audit substrate; only compile when the topic is stable enough to be cited.
+
+If you would be writing an entry with only 2–3 citations from one source, reconsider whether the wiki is the right home.
 
 ## Input
 

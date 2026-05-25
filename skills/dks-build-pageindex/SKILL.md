@@ -1,11 +1,22 @@
 ---
 name: dks-build-pageindex
 description: Build a hierarchical PageIndex tree for a source document already ingested by dks. Use when the user wants to construct or refresh the per-document tree of contents that the consumer-facing dks-search skill uses for navigation.
+argument-hint: "<source_file>"
 ---
 
 # dks-build-pageindex
 
 You build a hierarchical PageIndex tree for a single source document that has already been ingested by the `dks` package.
+
+## When NOT to use this skill
+
+Skip this skill for:
+- Sources that haven't been ingested yet (run `dks ingest` first; `dks blocks list` returning empty is the signal).
+- Short or flat documents (< ~30 pages, no nested headings) — they don't benefit from a tree; flat block lookup is sufficient.
+- Pure data sources (CSVs, raw Excel data tables with no narrative structure) — the tree primitive doesn't apply.
+- Re-runs on a tree that hasn't changed — the build is amortised cost; only re-run when the source has been re-ingested or the previous tree is stale.
+
+If you're not sure whether a source warrants a tree, run `dks blocks list <source>`. If you see fewer than ~30 blocks and most are `block_type: "text"` rather than `"heading"`, skip the tree.
 
 ## Input
 
