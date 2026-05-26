@@ -74,3 +74,28 @@ def test_read_missing_raises(tmp_path):
 def test_list_empty_dirs(tmp_path):
     layers = KbLayers(project=_layer("project", tmp_path / "p"), global_layer=None)
     assert list_wiki_entries(layers) == []
+
+
+def test_wiki_entry_default_classification_is_internal(tmp_path):
+    proj = _layer("project", tmp_path / "p")
+    layers = KbLayers(project=proj, global_layer=None)
+    entry = _entry("x", "body")
+    assert entry.classification == "internal"
+    write_wiki_entry(proj, entry)
+    loaded, _ = read_wiki_entry(layers, "x")
+    assert loaded.classification == "internal"
+
+
+def test_wiki_entry_roundtrip_preserves_classification(tmp_path):
+    proj = _layer("project", tmp_path / "p")
+    layers = KbLayers(project=proj, global_layer=None)
+    entry = WikiEntry(
+        topic="Sensitive topic",
+        slug="sensitive",
+        source_refs=["a.md#L1-1"],
+        body="body",
+        classification="confidential",
+    )
+    write_wiki_entry(proj, entry)
+    loaded, _ = read_wiki_entry(layers, "sensitive")
+    assert loaded.classification == "confidential"

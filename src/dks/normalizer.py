@@ -7,10 +7,14 @@ from collections.abc import Iterable
 from dks.block import NormalizedBlock
 from dks.blockref import encode_blockref
 from dks.citation_guard import check_block
-from dks.types import TypedContentItem
+from dks.types import Classification, TypedContentItem
 
 
-def normalize(source_file: str, items: Iterable[TypedContentItem]) -> list[NormalizedBlock]:
+def normalize(
+    source_file: str,
+    items: Iterable[TypedContentItem],
+    classification: Classification = "internal",
+) -> list[NormalizedBlock]:
     blocks: list[NormalizedBlock] = []
     for item in items:
         block_id = encode_blockref(source_file, item.locator)
@@ -20,6 +24,7 @@ def normalize(source_file: str, items: Iterable[TypedContentItem]) -> list[Norma
             locator=item.locator,
             block_type=item.block_type,
             content=item.content,
+            classification=classification,
         )
         check_block(block)  # raises CitationError on inconsistency
         blocks.append(block)
