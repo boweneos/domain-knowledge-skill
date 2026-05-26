@@ -250,6 +250,40 @@ def test_wiki_search_returns_layer(tmp_path):
     assert hits[0]["layer"] == "project"
 
 
+# --- layers ---------------------------------------------------------------
+
+def test_layers_list_project_explicit(tmp_path):
+    project = tmp_path / "proj"
+    global_base = tmp_path / "glob"
+    project.mkdir()
+    global_base.mkdir()
+    res = _invoke(["--project", str(project), "--global", str(global_base), "layers", "list"])
+    assert res.exit_code == 0, res.output
+    rows = json.loads(res.output)
+    by_name = {r["name"]: r for r in rows}
+    assert by_name["project"]["source"] == "explicit"
+    assert by_name["project"]["base"] == str(project.resolve())
+    assert by_name["project"]["exists"] is True
+    assert by_name["global"]["source"] == "explicit"
+
+
+def test_layers_list_no_global_hides_global(tmp_path):
+    project = tmp_path / "proj"
+    project.mkdir()
+    res = _invoke(["--project", str(project), "--no-global", "layers", "list"])
+    assert res.exit_code == 0, res.output
+    rows = json.loads(res.output)
+    assert [r["name"] for r in rows] == ["project"]
+
+
+def test_layers_list_marks_missing_base(tmp_path):
+    project = tmp_path / "proj"  # NOT created
+    res = _invoke(["--project", str(project), "--no-global", "layers", "list"])
+    assert res.exit_code == 0, res.output
+    [row] = json.loads(res.output)
+    assert row["exists"] is False
+
+
 def test_wiki_project_shadows_global_via_cli(tmp_path):
     project = tmp_path / "proj"
     global_base = tmp_path / "glob"

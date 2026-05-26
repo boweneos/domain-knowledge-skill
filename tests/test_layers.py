@@ -113,3 +113,54 @@ def test_walker_still_finds_closer_dotdks_even_under_home(tmp_path, monkeypatch)
     layers = resolve_layers(cwd=nested)
     assert layers.project is not None
     assert layers.project.base == repo / ".dks"
+
+
+# --- resolution provenance tests -------------------------------------------
+
+
+def test_resolve_records_source_explicit_for_project(tmp_path, monkeypatch):
+    monkeypatch.delenv("DKS_PROJECT", raising=False)
+    monkeypatch.setenv("DKS_GLOBAL", str(tmp_path / "g"))
+    layers = resolve_layers(project=tmp_path / "p", cwd=tmp_path)
+    assert layers.resolution["project"] == "explicit"
+
+
+def test_resolve_records_source_env_for_project(tmp_path, monkeypatch):
+    monkeypatch.setenv("DKS_PROJECT", str(tmp_path / "env-proj"))
+    monkeypatch.setenv("DKS_GLOBAL", str(tmp_path / "g"))
+    layers = resolve_layers(cwd=tmp_path)
+    assert layers.resolution["project"] == "env"
+
+
+def test_resolve_records_source_auto_for_project(tmp_path, monkeypatch):
+    monkeypatch.delenv("DKS_PROJECT", raising=False)
+    monkeypatch.setenv("DKS_GLOBAL", str(tmp_path / "g"))
+    repo = tmp_path / "repo"
+    (repo / ".dks").mkdir(parents=True)
+    layers = resolve_layers(cwd=repo)
+    assert layers.resolution["project"] == "auto-discover"
+
+
+def test_resolve_records_source_explicit_for_global(tmp_path, monkeypatch):
+    monkeypatch.delenv("DKS_GLOBAL", raising=False)
+    layers = resolve_layers(project=tmp_path / "p", global_base=tmp_path / "g", cwd=tmp_path)
+    assert layers.resolution["global"] == "explicit"
+
+
+def test_resolve_records_source_env_for_global(tmp_path, monkeypatch):
+    monkeypatch.setenv("DKS_GLOBAL", str(tmp_path / "g-env"))
+    layers = resolve_layers(project=tmp_path / "p", cwd=tmp_path)
+    assert layers.resolution["global"] == "env"
+
+
+def test_resolve_records_source_default_for_global(tmp_path, monkeypatch):
+    monkeypatch.delenv("DKS_GLOBAL", raising=False)
+    layers = resolve_layers(project=tmp_path / "p", cwd=tmp_path)
+    assert layers.resolution["global"] == "default"
+
+
+def test_resolve_records_source_suppressed_for_global(tmp_path, monkeypatch):
+    monkeypatch.setenv("DKS_GLOBAL", str(tmp_path / "g"))
+    layers = resolve_layers(project=tmp_path / "p", include_global=False, cwd=tmp_path)
+    assert layers.resolution.get("global") == "suppressed"
+    assert layers.global_layer is None

@@ -201,6 +201,7 @@ All deterministic operations. Skills invoke these; you can also run them directl
 
 | Command | Purpose |
 |---|---|
+| `dks layers list` | Print active layers with resolution source (env / auto-discover / explicit / default) and existence. Useful for debugging. |
 | `dks ingest <path> [--root DIR] [--write-global]` | Parse + normalize + write blocks. `--root` (default `raw/`) defines the relative `source_file` path. Writes to project layer by default; `--write-global` forces global. |
 | `dks blocks list <source_file>` | List `BlockHit`s across active layers: `[{"block_id", "layer"}, ...]` (deduped, project shadows global). |
 | `dks blocks get <block_id>` | Print `{"block": {...}, "layer": "..."}` from the first layer that has it. |

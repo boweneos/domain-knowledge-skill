@@ -241,5 +241,26 @@ def wiki_search(ctx: typer.Context, query: str = typer.Argument(...)) -> None:  
     typer.echo(json.dumps([h.model_dump() for h in hits], indent=2))
 
 
+# --- layers ---------------------------------------------------------------
+
+layers_app = typer.Typer(no_args_is_help=True, help="Inspect active KB layers.")
+app.add_typer(layers_app, name="layers")
+
+
+@layers_app.command("list")
+def layers_list(ctx: typer.Context) -> None:
+    """List active KB layers with resolution source and existence."""
+    layers = _layers(ctx)
+    out: list[dict[str, object]] = []
+    for layer in layers.for_read():
+        out.append({
+            "name": layer.name,
+            "base": str(layer.base.resolve()),
+            "source": layers.resolution.get(layer.name, "unknown"),
+            "exists": layer.base.is_dir(),
+        })
+    typer.echo(json.dumps(out, indent=2))
+
+
 if __name__ == "__main__":
     app()
