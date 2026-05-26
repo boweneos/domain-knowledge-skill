@@ -6,7 +6,7 @@ When Claude Code (or any consumer agent) writes code that touches regulated logi
 
 ## Status
 
-**Shipped end-to-end. Current version: 0.2.3.** Four phases merged to `main` and tagged:
+**Shipped end-to-end. Current version: 0.3.0.** Four phases merged to `main` and tagged:
 
 | Tag | What |
 |---|---|
@@ -17,8 +17,9 @@ When Claude Code (or any consumer agent) writes code that touches regulated logi
 | `v0.2.1` (patch) | Walker fix: auto-discovery no longer matches the global default location as a project layer when no closer `.dks/` exists. Surfaced by real end-to-end testing in a second repo. |
 | `v0.2.2` (minor) | **Divergence warning** on `dks blocks get` when a project block shadows a global block with different content (stderr WARN + `shadows` field in JSON). **`dks layers list`** introspection subcommand prints active layers with resolution source (explicit / env / auto-discover / default) for debugging. |
 | `v0.2.3` (patch) | Parser polish (carryovers #4 #5 #6): `MarkdownLocator` gains a `line_end >= line_start` validator; `decode_blockref` docstring loudly notes Markdown `heading_path` is not encoded by design; DOCX parser maps Docling labels to `list` / `table` / `code` block_types; Markdown parser detects ` ``` ` and `~~~` code fences. PDF parser docstring documents the flat-text limitation. |
+| `v0.3.0` (minor) | **Source classification & PII guardrails.** Opt-in `--classification` flag on `dks ingest` / `dks wiki write` (levels: public / internal / confidential / restricted). Confidential and restricted content rejected from global-write; `dks blocks get` emits stderr WARN; consumer skill paraphrases or points-only. Wiki entries propagate classification; lint flags leaks. Default behaviour unchanged. |
 
-121 tests passing, mypy strict + ruff clean. End-to-end smoke verified on the project's own design spec, on layer cascade behaviour, and on a real cross-repo install (global at `~/.dks/`, project at `<other-repo>/.dks/`).
+145 tests passing, mypy strict + ruff clean. End-to-end smoke verified on the project's own design spec, on layer cascade behaviour, and on a real cross-repo install (global at `~/.dks/`, project at `<other-repo>/.dks/`).
 
 ---
 
@@ -204,12 +205,12 @@ All deterministic operations. Skills invoke these; you can also run them directl
 | Command | Purpose |
 |---|---|
 | `dks layers list` | Print active layers with resolution source (env / auto-discover / explicit / default) and existence. Useful for debugging. |
-| `dks ingest <path> [--root DIR] [--write-global]` | Parse + normalize + write blocks. `--root` (default `raw/`) defines the relative `source_file` path. Writes to project layer by default; `--write-global` forces global. |
+| `dks ingest <path> [--root DIR] [--write-global] [--classification LEVEL]` | Parse + normalize + write blocks. `--root` (default `raw/`) defines the relative `source_file` path. Writes to project layer by default; `--write-global` forces global. `--classification` (default `internal`) sets the sensitivity level — confidential/restricted are rejected from global-write. |
 | `dks blocks list <source_file>` | List `BlockHit`s across active layers: `[{"block_id", "layer"}, ...]` (deduped, project shadows global). |
 | `dks blocks get <block_id>` | Print `{"block": {...}, "layer": "..."}` from the first layer that has it. |
 | `dks pageindex write <source_file> [--write-global]` | Read JSON tree from stdin, persist as `<layer>/index/<source>.pageindex.json`. |
 | `dks pageindex read <source_file>` | Print `{"tree": {...}, "layer": "..."}`. |
-| `dks wiki write <slug> [--write-global]` | Read `{topic, source_refs, body}` JSON from stdin, persist as `<layer>/wiki/<slug>.md`. |
+| `dks wiki write <slug> [--write-global] [--classification LEVEL]` | Read `{topic, source_refs, body}` JSON from stdin, persist as `<layer>/wiki/<slug>.md`. Same `--classification` semantics as ingest. |
 | `dks wiki read <slug>` | Print `{"entry": {...}, "layer": "..."}`. |
 | `dks wiki list` | List all wiki slugs across active layers: `[{"slug", "layer"}, ...]`. |
 | `dks wiki search <query>` | Keyword search over topic + body across layers; each `SearchHit` carries a `layer` tag. |

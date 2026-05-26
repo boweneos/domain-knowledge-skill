@@ -239,6 +239,50 @@ The first `dks ingest`, `dks wiki write`, or `dks pageindex write` from inside t
 
 ---
 
+## Source classification & PII guardrails
+
+`dks` supports opt-in classification of ingested sources, with downstream guardrails to keep sensitive content from leaking across layers or into agent output.
+
+### Levels
+
+| Level | Use for | Restrictions |
+|---|---|---|
+| `public` | regulator standards, public guidance | none |
+| `internal` (DEFAULT) | internal business rules, policy docs | none |
+| `confidential` | docs with incidental PII or sensitive business detail | cannot write to global layer; consumer skill paraphrases instead of quoting |
+| `restricted` | docs containing real PII or commercial-in-confidence | cannot write to global layer; consumer skill only points at source, never surfaces content |
+
+### Setting classification at ingest
+
+```bash
+dks ingest path/to/policy.pdf --classification internal      # default; equivalent to no flag
+dks ingest path/to/audit.pdf --classification confidential
+dks ingest path/to/claim-sample.pdf --classification restricted
+```
+
+The classification applies to every block emitted from that source. To revise, re-ingest with the new flag (overwrites idempotently).
+
+### What changes downstream
+
+- **Global-write rejection:** `dks ingest --classification confidential --write-global` (or `restricted`) exits 2 with an error. Sensitive content stays in the project layer.
+- **`dks blocks get` warning:** classified blocks emit `WARN: block <id> classification=<level>; verify requester is authorized` to stderr. Content still returned — the warning is for the operator's awareness.
+- **`dks-search` skill behaviour:** for confidential blocks, the skill paraphrases the rule with a citation rather than pasting verbatim content. For restricted blocks, it returns only "a rule exists at [citation], consult the source directly" and abstains from surfacing content.
+- **Wiki classification propagation:** a wiki entry citing confidential or restricted blocks must itself be classified at least as strictly. `dks wiki write --classification confidential ...`. Lint flags mismatches.
+
+### What classification doesn't do
+
+- **Doesn't redact PII automatically.** If you ingest a doc with real customer names, those names land verbatim in `normalized/`. Classification gates *output*, not *storage*. For true redaction, run a redaction pass upstream of `raw/`.
+- **Doesn't replace access controls on the filesystem.** Your `~/.dks/` and `<project>/.dks/` directories should still have appropriate filesystem permissions.
+- **Doesn't classify legacy blocks.** Blocks ingested before v0.3.0 default to `internal`. Re-ingest with `--classification` to reclassify.
+
+### When to use which level
+
+- Default to `internal` for the bulk of policy and rule documents.
+- Reach for `confidential` when a document includes incidental sensitive detail (named example claimants in training material; named internal stakeholders; commercial terms in vendor contracts) that you'd rather not have the LLM quote verbatim into PR descriptions or commit messages.
+- Reach for `restricted` for documents containing real PII (claim files, audit reports referencing named claimants) — *and consider whether such documents belong in `dks` at all*. Classification is a backstop, not a substitute for redacting upstream.
+
+---
+
 ## Step 1 — Curate `raw/`
 
 Drop authoritative source documents into `raw/`. Mirror your real folder taxonomy; the path under `raw/` becomes the canonical `source_file` identifier for every block.
