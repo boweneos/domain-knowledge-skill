@@ -6,7 +6,7 @@ When Claude Code (or any consumer agent) writes code that touches regulated logi
 
 ## Status
 
-**Shipped end-to-end. Current version: 0.3.5.** Four phases merged to `main` and tagged:
+**Shipped end-to-end. Current version: 0.3.6.** Four phases merged to `main` and tagged:
 
 | Tag | What |
 |---|---|
@@ -23,8 +23,9 @@ When Claude Code (or any consumer agent) writes code that touches regulated logi
 | `v0.3.3` (patch) | Walker corner case + install hint fixes from real-world mass-ingest. `--no-global` no longer makes auto-discovery match `~/.dks` as project (skip is always applied, even when global is suppressed). `[redact]` install hint corrected: `uv tool install --reinstall ... --with "en-core-web-lg @ <wheel-url>"` instead of broken `python -m spacy download` (which doesn't work in a uv tool venv). |
 | `v0.3.4` (patch) | **`--with-content` on `dks blocks list` and `dks wiki list`** — fetch the list AND full payload of each item in a single subprocess, eliminating the shell-loop / word-splitting hazard caused by block_ids containing spaces. Backwards compatible: output schema unchanged when flag is absent. |
 | `v0.3.5` (minor) | **Tuned Presidio default entity list + `--redact-entities` flag.** Real measurement on a 43-doc Encompass corpus showed Presidio's all-entities default over-fires on DATE_TIME (durations: "12 months"), LOCATION (internal acronyms: MLC/NEOS/URE), and US_DRIVER_LICENSE (version numbers: "1.0"). New default (`DEFAULT_REDACT_ENTITIES`): PERSON, EMAIL_ADDRESS, PHONE_NUMBER, AU_TFN, AU_MEDICARE, AU_ABN, CREDIT_CARD, IBAN_CODE. `--redact-entities all` reverts to full Presidio coverage; `--redact-entities A,B,C` uses a custom list. |
+| `v0.3.6` (patch) | **`dks-lint-wiki` skill prompt: bulk-pattern hint.** Real-world finding from compiling 4 wiki entries on the Encompass corpus — the lint procedure was inadvertently recommending per-id `dks blocks get` for citation checks, hitting the exact subprocess-startup trap v0.3.4's `--with-content` was meant to fix (86 citations × ~1.5s startup = >2 min). Skill prompt updated to lead with the bulk pattern (`dks wiki list --with-content` + `dks blocks list <source>` per cited source + set-membership check). |
 
-**Current version: 0.3.5.** 163 tests passing, 4 skipped (presidio absent in dev venv), mypy strict + ruff clean.
+**Current version: 0.3.6.** 163 tests passing, 4 skipped (presidio absent in dev venv), mypy strict + ruff clean.
 
 ---
 
