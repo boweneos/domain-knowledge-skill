@@ -190,6 +190,22 @@ The stderr WARN lines are operator-visible diagnostics, not errors. They
 exist so the human reviewing the session can verify that a sensitive block
 was actually intended for this consumer.
 
+### Redacted blocks
+
+A block may have been redacted at ingest (`--redact-pii`). When `dks blocks get`
+returns a block with `"redacted": true`, the `content` field contains
+`[REDACTED:<TYPE>]` markers where PII was detected and replaced.
+
+For redacted blocks, you can still cite them normally — the citation is still
+audit-grade because the block_id traces to the original source span — but
+acknowledge in your answer that the source has been redacted:
+
+```
+The customer notification rule applies [ref: audit.md#L1-1 @ project, redacted].
+(Source block has been redacted at ingest; refer to the original document for
+unredacted detail.)
+```
+
 ## Abstention
 
 If after Phase 1 + Phase 2 you cannot find a block that supports the claim you need, **abstain**. Tell the user clearly:

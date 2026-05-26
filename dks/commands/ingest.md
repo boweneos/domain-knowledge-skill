@@ -28,6 +28,19 @@ Run the `dks` ingestion pipeline on a single source document. The path can be re
    `confidential` (sensitive — global-write blocked, consumer skill paraphrases),
    `restricted` (PII — global-write blocked, consumer skill only points at source).
 
+   For sources containing real PII that should be scrubbed before writing, add
+   `--redact-pii` (requires the `redact` extra — see `docs/USAGE.md`):
+
+   ```bash
+   dks ingest path/to/audit.pdf --classification confidential --redact-pii
+   ```
+
+   This runs Microsoft Presidio on each block's content, replacing detected entities
+   (PERSON, EMAIL_ADDRESS, PHONE_NUMBER, DATE_TIME, AU_TFN, AU_MEDICARE, AU_ABN, etc.)
+   with `[REDACTED:<TYPE>]` markers before writing. The raw source file is untouched.
+   Blocks land with `redacted: true` in their frontmatter. If the `redact` extra is not
+   installed, the command exits 2 with a clear install hint.
+
 3. **Report the result.** The CLI prints `wrote N blocks to <output_dir>/<source_file>/`. Relay that to the user verbatim along with a one-line next-step suggestion:
    - If the source is long and structured (policy PDF, spec doc, technical manual), recommend `/dks:build-pageindex <source_file>` next.
    - If the source is short or flat (memo, simple spreadsheet), no PageIndex needed — they can move straight to `/dks:compile-wiki` when ready.

@@ -149,7 +149,9 @@ def ingest(
     if redact_pii:
         try:
             from dks.redact import redact_text
-            items = [item.model_copy(update={"content": redact_text(item.content)}) for item in items]
+            items = [
+                item.model_copy(update={"content": redact_text(item.content)}) for item in items
+            ]
         except ImportError as e:
             typer.echo(f"error: {e}", err=True)
             raise typer.Exit(code=2) from e

@@ -1,3 +1,3 @@
 """Domain knowledge skill — Phase 1 (ingestion + normalization)."""
 
-__version__ = "0.3.1"
+__version__ = "0.3.2"

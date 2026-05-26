@@ -6,7 +6,7 @@ When Claude Code (or any consumer agent) writes code that touches regulated logi
 
 ## Status
 
-**Shipped end-to-end. Current version: 0.3.1.** Four phases merged to `main` and tagged:
+**Shipped end-to-end. Current version: 0.3.2.** Four phases merged to `main` and tagged:
 
 | Tag | What |
 |---|---|
@@ -19,8 +19,9 @@ When Claude Code (or any consumer agent) writes code that touches regulated logi
 | `v0.2.3` (patch) | Parser polish (carryovers #4 #5 #6): `MarkdownLocator` gains a `line_end >= line_start` validator; `decode_blockref` docstring loudly notes Markdown `heading_path` is not encoded by design; DOCX parser maps Docling labels to `list` / `table` / `code` block_types; Markdown parser detects ` ``` ` and `~~~` code fences. PDF parser docstring documents the flat-text limitation. |
 | `v0.3.0` (minor) | **Source classification & PII guardrails.** Opt-in `--classification` flag on `dks ingest` / `dks wiki write` (levels: public / internal / confidential / restricted). Confidential and restricted content rejected from global-write; `dks blocks get` emits stderr WARN; consumer skill paraphrases or points-only. Wiki entries propagate classification; lint flags leaks. Default behaviour unchanged. |
 | `v0.3.1` (patch) | **PII pattern scan**: new `dks scan <path>` subcommand reports regex-based PII findings (TFN, Medicare, ABN, email, AU phone, DOB-shaped dates). `dks ingest` auto-scans and emits a stderr WARN if patterns found — operator still picks `--classification`. Advisory only; never auto-decides classification. |
+| `v0.3.2` (minor) | **Optional Presidio redaction**: `dks ingest --redact-pii` replaces detected PII (PERSON, EMAIL_ADDRESS, PHONE_NUMBER, AU_TFN, ...) with `[REDACTED:<TYPE>]` markers in block content. Requires the `redact` extra (`presidio-analyzer + presidio-anonymizer + spaCy`). `NormalizedBlock` gains a `redacted: bool` field. Without the flag, ingest behaviour is unchanged. |
 
-155 tests passing, mypy strict + ruff clean. End-to-end smoke verified on the project's own design spec, on layer cascade behaviour, on a real cross-repo install (global at `~/.dks/`, project at `<other-repo>/.dks/`), and on classification guardrails (global-write rejection + `dks blocks get` WARN for confidential blocks).
+165 tests passing, mypy strict + ruff clean. End-to-end smoke verified on the project's own design spec, on layer cascade behaviour, on a real cross-repo install (global at `~/.dks/`, project at `<other-repo>/.dks/`), and on classification guardrails (global-write rejection + `dks blocks get` WARN for confidential blocks).
 
 ---
 
@@ -206,7 +207,7 @@ All deterministic operations. Skills invoke these; you can also run them directl
 | Command | Purpose |
 |---|---|
 | `dks layers list` | Print active layers with resolution source (env / auto-discover / explicit / default) and existence. Useful for debugging. |
-| `dks ingest <path> [--root DIR] [--write-global] [--classification LEVEL]` | Parse + normalize + write blocks. `--root` (default `raw/`) defines the relative `source_file` path. Writes to project layer by default; `--write-global` forces global. `--classification` (default `internal`) sets the sensitivity level — confidential/restricted are rejected from global-write. Auto-scans for PII-like patterns; emits stderr WARN if found (advisory only). |
+| `dks ingest <path> [--root DIR] [--write-global] [--classification LEVEL] [--redact-pii]` | Parse + normalize + write blocks. `--root` (default `raw/`) defines the relative `source_file` path. Writes to project layer by default; `--write-global` forces global. `--classification` (default `internal`) sets the sensitivity level — confidential/restricted are rejected from global-write. Auto-scans for PII-like patterns; emits stderr WARN if found (advisory only). `--redact-pii` runs Presidio to scrub PII before writing (requires the `redact` extra). |
 | `dks scan <path>` | Scan a source file for PII-like patterns (TFN, Medicare, ABN, email, AU phone, DOB-shaped dates). Advisory only — does not change classification. Uses the parser registry, so works on PDF/DOCX/XLSX/MD. |
 | `dks blocks list <source_file>` | List `BlockHit`s across active layers: `[{"block_id", "layer"}, ...]` (deduped, project shadows global). |
 | `dks blocks get <block_id>` | Print `{"block": {...}, "layer": "..."}` from the first layer that has it. |

@@ -13,7 +13,10 @@ If Presidio isn't installed, calling redact_text() raises ImportError with
 a clear message; callers (CLI) should catch and re-message appropriately.
 """
 
+from __future__ import annotations
+
 from functools import lru_cache
+from typing import Any
 
 
 def _missing_dep_message() -> str:
@@ -26,22 +29,22 @@ def _missing_dep_message() -> str:
 
 
 @lru_cache(maxsize=1)
-def _get_analyzer():  # type: ignore[no-untyped-def]
+def _get_analyzer() -> Any:
     """Lazy-load Presidio analyzer. Cached so the spaCy model loads once per process."""
     try:
-        from presidio_analyzer import AnalyzerEngine  # type: ignore[import-not-found]
+        from presidio_analyzer import AnalyzerEngine
     except ImportError as e:
         raise ImportError(_missing_dep_message()) from e
     return AnalyzerEngine()
 
 
 @lru_cache(maxsize=1)
-def _get_anonymizer():  # type: ignore[no-untyped-def]
+def _get_anonymizer() -> Any:
     try:
-        from presidio_anonymizer import AnonymizerEngine  # type: ignore[import-not-found]
+        from presidio_anonymizer import AnonymizerEngine
     except ImportError as e:
         raise ImportError(_missing_dep_message()) from e
-    return AnonymizerEngine()
+    return AnonymizerEngine()  # type: ignore[no-untyped-call]
 
 
 def redact_text(text: str, *, entities: list[str] | None = None) -> str:
@@ -61,7 +64,7 @@ def redact_text(text: str, *, entities: list[str] | None = None) -> str:
     anonymizer = _get_anonymizer()
 
     try:
-        from presidio_anonymizer.entities import OperatorConfig  # type: ignore[import-not-found]
+        from presidio_anonymizer.entities import OperatorConfig
     except ImportError as e:
         raise ImportError(_missing_dep_message()) from e
 
@@ -70,7 +73,7 @@ def redact_text(text: str, *, entities: list[str] | None = None) -> str:
         return text
 
     # Default operator: replace with [REDACTED:<TYPE>]
-    operators = {
+    operators: dict[str, Any] = {
         "DEFAULT": OperatorConfig("replace", {"new_value": "[REDACTED:DEFAULT]"}),
     }
     # Per-entity replacements (override the default for known entity types)
@@ -80,4 +83,5 @@ def redact_text(text: str, *, entities: list[str] | None = None) -> str:
         )
 
     anonymized = anonymizer.anonymize(text=text, analyzer_results=results, operators=operators)
-    return anonymized.text
+    result: str = anonymized.text
+    return result
