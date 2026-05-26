@@ -15,6 +15,7 @@ import typer
 from dks.layers import KbLayer, KbLayers, resolve_layers
 from dks.normalizer import normalize
 from dks.parsers import get_parser
+from dks.scan import scan_text
 from dks.search import search_wiki
 from dks.store.blocks import BlockFetchResult, get_block, list_blocks
 from dks.store.pageindex import read_pageindex, write_pageindex
@@ -124,9 +125,54 @@ def ingest(
         raise typer.Exit(code=2) from e
 
     items = parser(path)
+
+    # Auto-scan for PII patterns; emit advisory WARN if found
+    combined = "\n".join(item.content for item in items)
+    scan_findings = scan_text(combined)
+    if scan_findings:
+        summary = ", ".join(f"{f.count} {f.pattern}" for f in scan_findings[:5])
+        typer.echo(
+            f"WARN: source contains PII-like patterns ({summary}); "
+            f"consider --classification confidential or restricted",
+            err=True,
+        )
+
     blocks = normalize(source_file=source_file, items=items, classification=classification)
     written = write_blocks(blocks, write_layer)
     typer.echo(f"wrote {len(written)} blocks to {write_layer.normalized_dir}/{source_file}/")
+
+
+# --- scan -----------------------------------------------------------------
+
+@app.command()
+def scan(
+    ctx: typer.Context,
+    path: Path = typer.Argument(..., help="Source file to scan for PII-shaped patterns."),  # noqa: B008
+) -> None:
+    """Scan a source file for PII-like patterns (regex). Advisory only."""
+    if not path.exists() or not path.is_file():
+        typer.echo(f"error: file not found: {path}", err=True)
+        raise typer.Exit(code=2)
+
+    try:
+        parser = get_parser(path)
+    except ValueError as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(code=2) from e
+
+    items = parser(path)
+    combined = "\n".join(item.content for item in items)
+    findings = scan_text(combined)
+
+    if not findings:
+        typer.echo(f"no PII-like patterns detected in {path}")
+        return
+
+    typer.echo(f"detected PII-like patterns in {path}:")
+    for finding in findings:
+        typer.echo(f"  - {finding.count} {finding.pattern} matches")
+    typer.echo("")
+    typer.echo("Consider --classification confidential or restricted when ingesting.")
 
 
 # --- blocks ---------------------------------------------------------------

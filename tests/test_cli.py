@@ -478,3 +478,59 @@ def test_wiki_write_confidential_to_global_is_rejected(tmp_path):
         stdin=json.dumps(payload),
     )
     assert res.exit_code == 2
+
+
+# --- scan ---
+
+def test_scan_command_no_findings(tmp_path):
+    src = tmp_path / "clean.md"
+    src.write_text("Just a plain policy document with no PII.")
+    res = _invoke(["--no-global", "--project", str(tmp_path), "scan", str(src)])
+    assert res.exit_code == 0
+    assert "no PII-like patterns detected" in res.output
+
+
+def test_scan_command_reports_findings(tmp_path):
+    src = tmp_path / "audit.md"
+    src.write_text("Customer alice@example.com phoned on 0412 345 678 about claim.")
+    res = _invoke(["--no-global", "--project", str(tmp_path), "scan", str(src)])
+    assert res.exit_code == 0
+    assert "EMAIL" in res.output
+    assert "AU_PHONE" in res.output
+    assert "Consider --classification" in res.output
+
+
+def test_scan_command_missing_file_exits_nonzero(tmp_path):
+    res = _invoke(["--no-global", "--project", str(tmp_path), "scan", str(tmp_path / "nope.md")])
+    assert res.exit_code != 0
+
+
+def test_ingest_auto_scan_warns_when_patterns_found(tmp_path):
+    project = tmp_path / "proj"
+    project.mkdir()
+    source = tmp_path / "raw" / "audit.md"
+    source.parent.mkdir()
+    source.write_text("Customer alice@example.com phoned about claim.")
+    res = _invoke(
+        ["--project", str(project), "--no-global",
+         "ingest", str(source), "--root", str(source.parent)],
+    )
+    assert res.exit_code == 0, res.output
+    assert "WARN" in res.output
+    assert "EMAIL" in res.output
+
+
+def test_ingest_no_warn_when_clean(tmp_path):
+    project = tmp_path / "proj"
+    project.mkdir()
+    source = tmp_path / "raw" / "clean.md"
+    source.parent.mkdir()
+    source.write_text("Plain policy text. No identifiers.")
+    res = _invoke(
+        ["--project", str(project), "--no-global",
+         "ingest", str(source), "--root", str(source.parent)],
+    )
+    assert res.exit_code == 0, res.output
+    # No PII WARN. (Classification WARN only fires for confidential/restricted.)
+    # Allow other unrelated WARN lines but specifically no "PII-like patterns".
+    assert "PII-like patterns" not in res.output

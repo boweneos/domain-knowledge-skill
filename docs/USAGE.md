@@ -281,6 +281,29 @@ The classification applies to every block emitted from that source. To revise, r
 - Reach for `confidential` when a document includes incidental sensitive detail (named example claimants in training material; named internal stakeholders; commercial terms in vendor contracts) that you'd rather not have the LLM quote verbatim into PR descriptions or commit messages.
 - Reach for `restricted` for documents containing real PII (claim files, audit reports referencing named claimants) — *and consider whether such documents belong in `dks` at all*. Classification is a backstop, not a substitute for redacting upstream.
 
+### PII pattern scan (advisory)
+
+Before ingesting a source you're unsure about, run:
+
+```bash
+dks scan path/to/doc.pdf
+```
+
+Sample output:
+```
+detected PII-like patterns in path/to/doc.pdf:
+  - 3 TFN matches
+  - 12 EMAIL matches
+  - 5 AU_PHONE matches
+  - 7 DOB_LIKE_DATE matches
+
+Consider --classification confidential or restricted when ingesting.
+```
+
+Patterns are regex-only (TFN, Medicare, ABN, email, AU phone, DOB-shaped dates) — high-precision detections that catch the common "I forgot this doc had PII" cases. Misses are expected; the scan is advisory, never authoritative. **Names, addresses, and unstructured PII are NOT detected** — for that, use the v0.3.2 `--redact-pii` path with Presidio.
+
+`dks ingest` also runs this scan automatically and emits a stderr `WARN` if patterns are found. The ingest still proceeds with whatever `--classification` you passed (default `internal`); the warning is there so the operator can re-ingest with a stricter classification if appropriate.
+
 ---
 
 ## Step 1 — Curate `raw/`
