@@ -159,6 +159,37 @@ I note this appears to conflict with <general_rule>. Recommend verifying with a 
 
 Do not silently substitute your prior for the cited source.
 
+## Handling classified content
+
+Every block returned by `dks blocks get` now carries a `classification` field
+(`public`, `internal`, `confidential`, or `restricted`) and may trigger a
+stderr `WARN` line when fetched. The classification governs how you may use
+the block's content in your answer:
+
+- **`public` / `internal`** — no restrictions. Quote, paraphrase, cite as
+  normal.
+- **`confidential`** — cite the block_id and summarise the rule in your own
+  words. **Do not paste verbatim block content** into the answer or into
+  code comments. The citation discipline is preserved (you can still
+  ground the claim) but the surface form changes.
+- **`restricted`** — return only a pointer:
+  > "A rule on [topic] exists at [block_id @ layer, classification: restricted].
+  > Per its restricted classification, I won't surface its content here —
+  > please consult the source directly."
+  Then stop. Do not summarise. Do not paraphrase. Do not infer.
+
+When you emit your `Sources:` block, include the classification in the tag:
+
+```
+Sources:
+- claims.pdf#p14#3.2 @ global, internal — 30-day filing window
+- product-pii-rules.docx#§3 @ project, confidential — see source for details
+```
+
+The stderr WARN lines are operator-visible diagnostics, not errors. They
+exist so the human reviewing the session can verify that a sensitive block
+was actually intended for this consumer.
+
 ## Abstention
 
 If after Phase 1 + Phase 2 you cannot find a block that supports the claim you need, **abstain**. Tell the user clearly:
