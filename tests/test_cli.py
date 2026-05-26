@@ -490,6 +490,102 @@ def test_wiki_write_confidential_to_global_is_rejected(tmp_path):
     assert res.exit_code == 2
 
 
+def test_blocks_list_with_content_includes_full_block(tmp_path):
+    project = tmp_path / "proj"
+    project.mkdir()
+    source = tmp_path / "raw" / "notes.md"
+    source.parent.mkdir()
+    source.write_text("First line.\n\nSecond paragraph here.\n")
+    _invoke(
+        ["--project", str(project), "--no-global",
+         "ingest", str(source), "--root", str(source.parent)],
+    )
+    res = _invoke(
+        ["--project", str(project), "--no-global",
+         "blocks", "list", "notes.md", "--with-content"],
+    )
+    assert res.exit_code == 0, res.output
+    rows = json.loads(res.output)
+    assert len(rows) == 2
+    for row in rows:
+        assert "block_id" in row
+        assert "layer" in row
+        assert "block" in row
+        # The block object should have all NormalizedBlock fields
+        assert "content" in row["block"]
+        assert "locator" in row["block"]
+        assert "classification" in row["block"]
+        assert "redacted" in row["block"]
+
+
+def test_blocks_list_without_with_content_is_unchanged(tmp_path):
+    # Existing schema must be preserved when --with-content not passed
+    project = tmp_path / "proj"
+    project.mkdir()
+    source = tmp_path / "raw" / "notes.md"
+    source.parent.mkdir()
+    source.write_text("hi\n")
+    _invoke(
+        ["--project", str(project), "--no-global",
+         "ingest", str(source), "--root", str(source.parent)],
+    )
+    res = _invoke(
+        ["--project", str(project), "--no-global",
+         "blocks", "list", "notes.md"],
+    )
+    rows = json.loads(res.output)
+    assert len(rows) == 1
+    assert set(rows[0].keys()) == {"block_id", "layer"}  # exactly these two
+
+
+def test_wiki_list_with_content_includes_full_entry(tmp_path):
+    project = tmp_path / "proj"
+    project.mkdir()
+    payload = {
+        "topic": "Test topic",
+        "source_refs": ["a.md#L1-1"],
+        "body": "Body text here.",
+    }
+    _invoke(
+        ["--project", str(project), "--no-global",
+         "wiki", "write", "test-slug"],
+        stdin=json.dumps(payload),
+    )
+    res = _invoke(
+        ["--project", str(project), "--no-global",
+         "wiki", "list", "--with-content"],
+    )
+    assert res.exit_code == 0, res.output
+    rows = json.loads(res.output)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["slug"] == "test-slug"
+    assert row["layer"] == "project"
+    assert "entry" in row
+    assert row["entry"]["topic"] == "Test topic"
+    assert row["entry"]["body"] == "Body text here."
+    assert row["entry"]["classification"] == "internal"
+
+
+def test_wiki_list_without_with_content_is_unchanged(tmp_path):
+    project = tmp_path / "proj"
+    project.mkdir()
+    payload = {
+        "topic": "T", "source_refs": ["a.md#L1-1"], "body": "b",
+    }
+    _invoke(
+        ["--project", str(project), "--no-global",
+         "wiki", "write", "x"],
+        stdin=json.dumps(payload),
+    )
+    res = _invoke(
+        ["--project", str(project), "--no-global", "wiki", "list"],
+    )
+    rows = json.loads(res.output)
+    assert len(rows) == 1
+    assert set(rows[0].keys()) == {"slug", "layer"}
+
+
 # --- scan ---
 
 def test_scan_command_no_findings(tmp_path):

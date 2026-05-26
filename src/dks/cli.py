@@ -203,12 +203,33 @@ app.add_typer(blocks_app, name="blocks")
 
 
 @blocks_app.command("list")
-def blocks_list(ctx: typer.Context, source_file: str = typer.Argument(...)) -> None:  # noqa: B008
-    """List BlockHits ({block_id, layer}) for a source file across active layers (JSON)."""
+def blocks_list(
+    ctx: typer.Context,
+    source_file: str = typer.Argument(...),  # noqa: B008
+    with_content: bool = typer.Option(
+        False,
+        "--with-content",
+        help="Include the full NormalizedBlock JSON inline under .block for each hit.",
+    ),
+) -> None:
+    """List BlockHits ({block_id, layer}) for a source file across active layers (JSON).
+
+    With --with-content, each hit also includes the full NormalizedBlock JSON
+    under a 'block' key. Use this to avoid shell loops over block_ids
+    (which are word-split-hostile because block_ids contain spaces).
+    """
     layers = _layers(ctx)
     hits = list_blocks(layers, source_file=source_file)
-    out = [{"block_id": h.block_id, "layer": h.layer} for h in hits]
-    typer.echo(json.dumps(out, indent=2))
+    out: list[dict[str, object]] = []
+    for h in hits:
+        row: dict[str, object] = {"block_id": h.block_id, "layer": h.layer}
+        if with_content:
+            result = get_block(layers, block_id=h.block_id)
+            row["block"] = result.block.model_dump()
+            # Note: we don't include shadows here to keep the output clean;
+            # callers needing shadows should use `dks blocks get` per id.
+        out.append(row)
+    typer.echo(json.dumps(out, indent=2, default=str))
 
 
 @blocks_app.command("get")
@@ -326,12 +347,29 @@ def wiki_read(ctx: typer.Context, slug: str = typer.Argument(...)) -> None:  # n
 
 
 @wiki_app.command("list")
-def wiki_list(ctx: typer.Context) -> None:
-    """List wiki slugs across layers (JSON, deduped — project shadows global)."""
+def wiki_list(
+    ctx: typer.Context,
+    with_content: bool = typer.Option(
+        False,
+        "--with-content",
+        help="Include the full WikiEntry JSON inline under .entry for each hit.",
+    ),
+) -> None:
+    """List wiki slugs across layers (JSON, deduped — project shadows global).
+
+    With --with-content, each hit also includes the full WikiEntry JSON
+    under an 'entry' key.
+    """
     layers = _layers(ctx)
     hits = list_wiki_entries(layers)
-    out = [{"slug": h.slug, "layer": h.layer} for h in hits]
-    typer.echo(json.dumps(out, indent=2))
+    out: list[dict[str, object]] = []
+    for h in hits:
+        row: dict[str, object] = {"slug": h.slug, "layer": h.layer}
+        if with_content:
+            entry, _ = read_wiki_entry(layers, h.slug)
+            row["entry"] = entry.model_dump()
+        out.append(row)
+    typer.echo(json.dumps(out, indent=2, default=str))
 
 
 @wiki_app.command("search")
