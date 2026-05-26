@@ -115,6 +115,31 @@ def test_walker_still_finds_closer_dotdks_even_under_home(tmp_path, monkeypatch)
     assert layers.project.base == repo / ".dks"
 
 
+def test_walker_skips_global_default_even_when_no_global(tmp_path, monkeypatch):
+    """Regression (0.3.3): even when include_global=False, the walker must
+    still skip the global default location. Without this, auto-discovery
+    from any path under $HOME climbs to ~/.dks and matches it as project —
+    exactly the case the 0.2.1 walker-skip fix was supposed to prevent.
+    """
+    monkeypatch.delenv("DKS_PROJECT", raising=False)
+    home_like = tmp_path / "home"
+    global_at_home = home_like / ".dks"
+    global_at_home.mkdir(parents=True)
+    monkeypatch.setenv("DKS_GLOBAL", str(global_at_home))
+
+    repo = home_like / "development" / "some-product"
+    repo.mkdir(parents=True)
+
+    # --no-global: the global layer is suppressed but the walker must STILL skip
+    # the global location to avoid matching it as project.
+    layers = resolve_layers(cwd=repo, include_global=False)
+    assert layers.global_layer is None
+    assert layers.project is None, (
+        f"Walker climbed to {global_at_home} and matched it as project despite --no-global"
+    )
+    assert layers.resolution.get("global") == "suppressed"
+
+
 # --- resolution provenance tests -------------------------------------------
 
 

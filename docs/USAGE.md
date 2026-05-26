@@ -314,8 +314,21 @@ with `[REDACTED:<TYPE>]` markers.
 **Install the optional extra** (one-time):
 
 ```bash
-uv tool install --with presidio-analyzer --with presidio-anonymizer dks
-python -m spacy download en_core_web_lg   # ~500MB, one-time download
+# Note: --reinstall is required if you already have dks installed without these extras.
+# The spaCy model is injected via --with because `python -m spacy download` doesn't
+# work inside a uv tool venv (no pip there). Model wheel version must match the spacy
+# version pinned in dks's deps — currently 3.8.x.
+uv tool install --reinstall \
+    --with presidio-analyzer \
+    --with presidio-anonymizer \
+    --with "en-core-web-lg @ https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0.tar.gz" \
+    dks
+```
+
+The spaCy model is ~500MB; first install takes a few minutes. Verify it loads:
+
+```bash
+~/.local/share/uv/tools/dks/bin/python -c "import spacy; spacy.load('en_core_web_lg'); print('OK')"
 ```
 
 **Usage:**
