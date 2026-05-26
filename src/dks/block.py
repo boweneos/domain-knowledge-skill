@@ -5,7 +5,7 @@ import json
 from pydantic import BaseModel
 
 from dks.locators import Locator
-from dks.types import BlockType
+from dks.types import BlockType, Classification
 
 _FENCE = "---"
 
@@ -16,6 +16,7 @@ class NormalizedBlock(BaseModel):
     locator: Locator
     block_type: BlockType = "text"
     content: str
+    classification: Classification = "internal"
 
 
 def to_markdown(block: NormalizedBlock) -> str:

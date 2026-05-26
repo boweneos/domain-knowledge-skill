@@ -36,3 +36,29 @@ def test_normalize_propagates_block_type():
     ]
     [block] = normalize(source_file="x.md", items=items)
     assert block.block_type == "heading"
+
+
+def test_normalize_default_classification_is_internal():
+    items = [
+        TypedContentItem(
+            content="hello",
+            locator=MarkdownLocator(heading_path=[], line_start=1, line_end=1),
+        ),
+    ]
+    [block] = normalize(source_file="a.md", items=items)
+    assert block.classification == "internal"
+
+
+def test_normalize_propagates_explicit_classification():
+    items = [
+        TypedContentItem(
+            content="hello",
+            locator=MarkdownLocator(heading_path=[], line_start=1, line_end=1),
+        ),
+        TypedContentItem(
+            content="goodbye",
+            locator=MarkdownLocator(heading_path=[], line_start=3, line_end=3),
+        ),
+    ]
+    blocks = normalize(source_file="a.md", items=items, classification="confidential")
+    assert all(b.classification == "confidential" for b in blocks)

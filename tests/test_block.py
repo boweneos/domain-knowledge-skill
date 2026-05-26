@@ -2,6 +2,44 @@ from dks.block import NormalizedBlock, parse_markdown, to_markdown
 from dks.locators import MarkdownLocator
 
 
+def test_normalized_block_default_classification_is_internal():
+    block = NormalizedBlock(
+        source_file="a.md",
+        block_id="a.md#L1-1",
+        locator=MarkdownLocator(heading_path=[], line_start=1, line_end=1),
+        block_type="text",
+        content="x",
+    )
+    assert block.classification == "internal"
+
+
+def test_normalized_block_accepts_all_classification_levels():
+    for level in ("public", "internal", "confidential", "restricted"):
+        block = NormalizedBlock(
+            source_file="a.md",
+            block_id="a.md#L1-1",
+            locator=MarkdownLocator(heading_path=[], line_start=1, line_end=1),
+            block_type="text",
+            content="x",
+            classification=level,
+        )
+        assert block.classification == level
+
+
+def test_normalized_block_roundtrip_preserves_classification():
+    original = NormalizedBlock(
+        source_file="a.md",
+        block_id="a.md#L1-1",
+        locator=MarkdownLocator(heading_path=[], line_start=1, line_end=1),
+        block_type="text",
+        content="x",
+        classification="confidential",
+    )
+    md = to_markdown(original)
+    parsed = parse_markdown(md)
+    assert parsed.classification == "confidential"
+
+
 def _make_block() -> NormalizedBlock:
     return NormalizedBlock(
         source_file="notes/handling.md",

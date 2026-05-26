@@ -303,3 +303,178 @@ def test_wiki_project_shadows_global_via_cli(tmp_path):
     parsed = json.loads(r.output)
     assert parsed["layer"] == "project"
     assert "ten years" in parsed["entry"]["body"]
+
+
+# --- classification ----------------------------------------------------
+
+def test_ingest_with_classification_persists_field(tmp_path):
+    project = tmp_path / "proj"
+    project.mkdir()
+    source = tmp_path / "raw" / "audit.md"
+    source.parent.mkdir()
+    source.write_text("Sensitive line.\n")
+
+    res = _invoke(
+        ["--project", str(project), "--no-global",
+         "ingest", str(source), "--root", str(source.parent),
+         "--classification", "confidential"],
+    )
+    assert res.exit_code == 0, res.output
+
+    # Read back the block and verify classification field
+    get_res = _invoke(
+        ["--project", str(project), "--no-global",
+         "blocks", "get", "audit.md#L1-1"],
+    )
+    assert get_res.exit_code == 0, get_res.output
+    # The JSON object starts after any WARN line(s) on stderr+stdout. CliRunner combines them.
+    json_start = get_res.output.find("{")
+    payload = json.loads(get_res.output[json_start:])
+    assert payload["block"]["classification"] == "confidential"
+
+
+def test_ingest_with_classification_default_is_internal(tmp_path):
+    project = tmp_path / "proj"
+    project.mkdir()
+    source = tmp_path / "raw" / "policy.md"
+    source.parent.mkdir()
+    source.write_text("Regular policy.\n")
+
+    res = _invoke(
+        ["--project", str(project), "--no-global",
+         "ingest", str(source), "--root", str(source.parent)],
+    )
+    assert res.exit_code == 0, res.output
+
+    get_res = _invoke(
+        ["--project", str(project), "--no-global",
+         "blocks", "get", "policy.md#L1-1"],
+    )
+    payload = json.loads(get_res.output[get_res.output.find("{"):])
+    assert payload["block"]["classification"] == "internal"
+
+
+def test_ingest_confidential_to_global_is_rejected(tmp_path):
+    global_base = tmp_path / "glob"
+    global_base.mkdir()
+    source = tmp_path / "raw" / "audit.md"
+    source.parent.mkdir()
+    source.write_text("Sensitive.\n")
+
+    res = _invoke(
+        ["--global", str(global_base),
+         "ingest", str(source), "--root", str(source.parent),
+         "--classification", "confidential", "--write-global"],
+    )
+    assert res.exit_code == 2
+    assert "confidential" in res.output.lower() or "global" in res.output.lower()
+
+
+def test_ingest_restricted_to_global_is_rejected(tmp_path):
+    global_base = tmp_path / "glob"
+    global_base.mkdir()
+    source = tmp_path / "raw" / "claim.md"
+    source.parent.mkdir()
+    source.write_text("PII content.\n")
+
+    res = _invoke(
+        ["--global", str(global_base),
+         "ingest", str(source), "--root", str(source.parent),
+         "--classification", "restricted", "--write-global"],
+    )
+    assert res.exit_code == 2
+
+
+def test_ingest_internal_to_global_is_allowed(tmp_path):
+    # Sanity: internal/public classifications can still go to global.
+    global_base = tmp_path / "glob"
+    global_base.mkdir()
+    source = tmp_path / "raw" / "policy.md"
+    source.parent.mkdir()
+    source.write_text("Generic policy.\n")
+
+    res = _invoke(
+        ["--global", str(global_base),
+         "ingest", str(source), "--root", str(source.parent),
+         "--classification", "internal", "--write-global"],
+    )
+    assert res.exit_code == 0, res.output
+
+
+def test_blocks_get_emits_warn_for_confidential(tmp_path):
+    project = tmp_path / "proj"
+    project.mkdir()
+    source = tmp_path / "raw" / "audit.md"
+    source.parent.mkdir()
+    source.write_text("Sensitive.\n")
+    _invoke(
+        ["--project", str(project), "--no-global",
+         "ingest", str(source), "--root", str(source.parent),
+         "--classification", "confidential"],
+    )
+    res = _invoke(
+        ["--project", str(project), "--no-global",
+         "blocks", "get", "audit.md#L1-1"],
+    )
+    assert res.exit_code == 0, res.output
+    assert "WARN" in res.output
+    assert "confidential" in res.output.lower()
+
+
+def test_blocks_get_no_warn_for_internal(tmp_path):
+    project = tmp_path / "proj"
+    project.mkdir()
+    source = tmp_path / "raw" / "policy.md"
+    source.parent.mkdir()
+    source.write_text("Regular.\n")
+    _invoke(
+        ["--project", str(project), "--no-global",
+         "ingest", str(source), "--root", str(source.parent)],
+    )
+    res = _invoke(
+        ["--project", str(project), "--no-global",
+         "blocks", "get", "policy.md#L1-1"],
+    )
+    assert res.exit_code == 0
+    # No classification WARN (a divergence WARN could still appear if shadows exist —
+    # this test has no shadows, so any WARN would be wrong.)
+    assert "classification" not in res.output.lower() or "WARN" not in res.output
+
+
+def test_wiki_write_with_classification_persists_field(tmp_path):
+    project = tmp_path / "proj"
+    project.mkdir()
+    payload = {
+        "topic": "Sensitive topic",
+        "source_refs": ["a.md#L1-1"],
+        "body": "details",
+    }
+    res = _invoke(
+        ["--project", str(project), "--no-global",
+         "wiki", "write", "sensitive", "--classification", "confidential"],
+        stdin=json.dumps(payload),
+    )
+    assert res.exit_code == 0, res.output
+    read_res = _invoke(
+        ["--project", str(project), "--no-global",
+         "wiki", "read", "sensitive"],
+    )
+    parsed = json.loads(read_res.output)
+    assert parsed["entry"]["classification"] == "confidential"
+
+
+def test_wiki_write_confidential_to_global_is_rejected(tmp_path):
+    global_base = tmp_path / "glob"
+    global_base.mkdir()
+    payload = {
+        "topic": "Sensitive",
+        "source_refs": ["a.md#L1-1"],
+        "body": "details",
+    }
+    res = _invoke(
+        ["--global", str(global_base),
+         "wiki", "write", "sensitive",
+         "--classification", "confidential", "--write-global"],
+        stdin=json.dumps(payload),
+    )
+    assert res.exit_code == 2

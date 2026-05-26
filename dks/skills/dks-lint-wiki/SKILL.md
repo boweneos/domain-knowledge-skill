@@ -36,6 +36,11 @@ Lint is a corpus-wide audit pass. Run it after a re-ingest, on a schedule, or be
    - Extract every inline `[ref: <block_id>]` from the body. For each:
      - If the cited block_id is NOT in `source_refs`, record as **inline drift (cited but not in source_refs)** (noting the entry's layer).
    - For every `block_id` in `source_refs` that does NOT appear in any inline `[ref: ...]` in the body, record as **inline drift (in source_refs but not cited in body)** (noting the entry's layer).
+   - **Classification leak.** Fetch each cited block via `dks blocks get` and
+     read its `classification`. Compute `max_cited = max` of those (using the
+     order `public < internal < confidential < restricted`). If the wiki
+     entry's own `classification` is less strict than `max_cited`, record as a
+     classification leak.
 
 4. **Cross-entry contradiction scan.** Read each entry's body. Flag any pair of entries that make directly opposing factual claims on the same narrow topic (e.g., entry A says "30 days" and entry B says "60 days" without versioning context). Be conservative — only flag direct, factual conflicts. Same word ≠ contradiction.
 
@@ -61,6 +66,9 @@ Lint is a corpus-wide audit pass. Run it after a re-ingest, on a schedule, or be
    - (global) entry `<slug>`: block `<id>` served from global layer shadows another lower layer
      with different content
 
+   ### Classification leaks
+   - (project) entry `<slug>` classified `<entry_class>` cites <N> blocks at `<higher_class>` — reclassify or remove cited material
+
    ### Possible contradictions
    - (project) `<slug-a>` says "<claim>" [<id> @ project] but (global) `<slug-b>` says "<other>" [<id> @ global] — same topic area
 
@@ -70,6 +78,7 @@ Lint is a corpus-wide audit pass. Run it after a re-ingest, on a schedule, or be
    - Y drift issues
    - Z cross-layer citations
    - V divergent shadows
+   - W classification leaks
    - W possible contradictions
    ```
 

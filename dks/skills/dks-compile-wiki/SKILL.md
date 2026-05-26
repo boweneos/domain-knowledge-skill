@@ -41,9 +41,32 @@ The user names:
      Customer details must be encrypted at rest [ref: pii.pdf#p3 @ global], with the additional product-specific exception that minor accounts may use deferred encryption [ref: product-exceptions.md#L12-18 @ project].
      ```
 
-3. **Collect the unique source_refs.** Extract every distinct `block_id` you cited; that is the `source_refs` list.
+3. **Set the wiki entry's classification.** The entry's classification must
+   be at least as strict as the strictest cited block:
 
-4. **Persist.** Build a JSON object:
+   - If you cited any `confidential` block → entry must be `confidential`
+     (or `restricted`).
+   - If you cited any `restricted` block → entry must be `restricted`. You
+     should also reconsider whether such an entry should exist at all —
+     wiki entries are for cross-source synthesis, and citing restricted
+     material in a synthesised entry compounds exposure. Prefer to leave
+     a "consult the source directly" pointer in a `confidential` entry.
+
+   Pass the classification to `dks wiki write` via `--classification`:
+
+   ```bash
+   echo '...' | dks wiki write claim-filing-windows --classification confidential
+   ```
+
+   When writing the body:
+   - For confidential cited blocks: paraphrase rather than quote.
+   - For restricted cited blocks: do not include block content at all;
+     reference the citation and let `dks-search` consumers retrieve the
+     source themselves.
+
+4. **Collect the unique source_refs.** Extract every distinct `block_id` you cited; that is the `source_refs` list.
+
+5. **Persist.** Build a JSON object:
    ```json
    {
      "topic": "<topic>",
@@ -60,7 +83,7 @@ The user names:
    echo '<json>' | dks wiki write --write-global <slug>
    ```
 
-5. **Report.** Tell the user the slug, the path written, the source_ref count, and the article length in words.
+6. **Report.** Tell the user the slug, the path written, the source_ref count, and the article length in words.
 
 ## Constraints
 
@@ -70,6 +93,9 @@ The user names:
 - **Slug discipline.** The slug becomes a filename. Reject slugs with `/`, spaces, uppercase, or non-ASCII characters. Ask the user for a fixed slug if theirs is invalid; don't silently normalize.
 - **No editing existing wiki entries.** This skill only writes new entries. If the slug already exists, the write will overwrite it — confirm with the user before doing so.
 - **Cross-layer citation visibility.** If you cite blocks from BOTH layers in one article, include `@ layer` on at least the project citations so the layer divergence is visible to the reader.
+- **Classification must propagate up.** A wiki entry citing `confidential`
+  or `restricted` blocks must declare a matching (or stricter) classification.
+  `dks-lint-wiki` flags mismatches as classification leaks.
 
 ## Cost guidance
 

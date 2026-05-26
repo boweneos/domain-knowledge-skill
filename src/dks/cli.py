@@ -19,6 +19,7 @@ from dks.search import search_wiki
 from dks.store.blocks import BlockFetchResult, get_block, list_blocks
 from dks.store.pageindex import read_pageindex, write_pageindex
 from dks.store.wiki import WikiEntry, list_wiki_entries, read_wiki_entry, write_wiki_entry
+from dks.types import Classification, classification_rank
 from dks.writer import write_blocks
 
 app = typer.Typer(no_args_is_help=True)
@@ -65,6 +66,20 @@ def _resolve_write_layer(layers: KbLayers, write_global: bool) -> KbLayer:
     return layers.for_write()
 
 
+def _reject_sensitive_global_write(
+    classification: Classification, write_global: bool
+) -> None:
+    """Exit 2 if attempting to write confidential/restricted content to the global layer."""
+    if write_global and classification_rank(classification) >= classification_rank("confidential"):
+        typer.echo(
+            f"error: cannot write '{classification}' content to the global layer; "
+            f"use the project layer (default) instead. "
+            f"Sensitive material should stay scoped to a project.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+
 # --- ingest ---------------------------------------------------------------
 
 @app.command()
@@ -82,8 +97,14 @@ def ingest(
         "--write-global",
         help="Force the write target to the global layer.",
     ),
+    classification: Classification = typer.Option(  # noqa: B008
+        "internal",
+        "--classification",
+        help="Sensitivity level: public | internal | confidential | restricted. Default: internal.",
+    ),
 ) -> None:
     """Parse, normalize, and persist a source document into the active write layer."""
+    _reject_sensitive_global_write(classification, write_global)
     if not path.exists() or not path.is_file():
         typer.echo(f"error: file not found: {path}", err=True)
         raise typer.Exit(code=2)
@@ -103,7 +124,7 @@ def ingest(
         raise typer.Exit(code=2) from e
 
     items = parser(path)
-    blocks = normalize(source_file=source_file, items=items)
+    blocks = normalize(source_file=source_file, items=items, classification=classification)
     written = write_blocks(blocks, write_layer)
     typer.echo(f"wrote {len(written)} blocks to {write_layer.normalized_dir}/{source_file}/")
 
@@ -139,6 +160,12 @@ def blocks_get(ctx: typer.Context, block_id: str = typer.Argument(...)) -> None:
                 f" {shadow.layer} with different content",
                 err=True,
             )
+    if classification_rank(result.block.classification) >= classification_rank("confidential"):
+        typer.echo(
+            f"WARN: block {block_id!r} classification={result.block.classification}; "
+            f"verify requester is authorized",
+            err=True,
+        )
     shadows_payload = [
         {"layer": s.layer, "content_differs": s.content_differs} for s in result.shadows
     ]
@@ -201,12 +228,19 @@ def wiki_write(
         "--write-global",
         help="Force write to the global layer.",
     ),
+    classification: Classification = typer.Option(  # noqa: B008
+        "internal",
+        "--classification",
+        help="Sensitivity level: public | internal | confidential | restricted. Default: internal.",
+    ),
 ) -> None:
     """Read JSON {topic, source_refs, body} from stdin and persist."""
+    _reject_sensitive_global_write(classification, write_global)
     layers = _layers(ctx)
     write_layer = _resolve_write_layer(layers, write_global)
     data = json.loads(sys.stdin.read())
     data["slug"] = slug
+    data["classification"] = classification
     entry = WikiEntry.model_validate(data)
     target = write_wiki_entry(write_layer, entry)
     typer.echo(f"wrote {target}")

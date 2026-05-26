@@ -9,6 +9,7 @@ from typing import Any, cast
 from pydantic import BaseModel
 
 from dks.layers import KbLayer, KbLayers
+from dks.types import Classification
 
 _FENCE = "---"
 
@@ -19,6 +20,7 @@ class WikiEntry(BaseModel):
     source_refs: list[str]
     body: str
     compiled_at: str | None = None
+    classification: Classification = "internal"
 
 
 @dataclass(frozen=True)
