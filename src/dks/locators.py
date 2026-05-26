@@ -7,7 +7,7 @@ provides enough detail to reconstruct an audit-grade citation.
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class PdfLocator(BaseModel):
@@ -34,6 +34,14 @@ class MarkdownLocator(BaseModel):
     heading_path: list[str]
     line_start: int = Field(ge=1)
     line_end: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def _check_line_range(self) -> "MarkdownLocator":
+        if self.line_end < self.line_start:
+            raise ValueError(
+                f"line_end ({self.line_end}) must be >= line_start ({self.line_start})"
+            )
+        return self
 
 
 Locator = Annotated[
