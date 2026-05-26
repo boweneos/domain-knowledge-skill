@@ -19,7 +19,7 @@ When Claude Code (or any consumer agent) writes code that touches regulated logi
 | `v0.2.3` (patch) | Parser polish (carryovers #4 #5 #6): `MarkdownLocator` gains a `line_end >= line_start` validator; `decode_blockref` docstring loudly notes Markdown `heading_path` is not encoded by design; DOCX parser maps Docling labels to `list` / `table` / `code` block_types; Markdown parser detects ` ``` ` and `~~~` code fences. PDF parser docstring documents the flat-text limitation. |
 | `v0.3.0` (minor) | **Source classification & PII guardrails.** Opt-in `--classification` flag on `dks ingest` / `dks wiki write` (levels: public / internal / confidential / restricted). Confidential and restricted content rejected from global-write; `dks blocks get` emits stderr WARN; consumer skill paraphrases or points-only. Wiki entries propagate classification; lint flags leaks. Default behaviour unchanged. |
 
-145 tests passing, mypy strict + ruff clean. End-to-end smoke verified on the project's own design spec, on layer cascade behaviour, and on a real cross-repo install (global at `~/.dks/`, project at `<other-repo>/.dks/`).
+139 tests passing, mypy strict + ruff clean. End-to-end smoke verified on the project's own design spec, on layer cascade behaviour, on a real cross-repo install (global at `~/.dks/`, project at `<other-repo>/.dks/`), and on classification guardrails (global-write rejection + `dks blocks get` WARN for confidential blocks).
 
 ---
 
