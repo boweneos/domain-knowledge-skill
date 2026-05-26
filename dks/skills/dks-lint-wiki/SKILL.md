@@ -19,28 +19,29 @@ Lint is a corpus-wide audit pass. Run it after a re-ingest, on a schedule, or be
 
 ## Procedure
 
-1. **List all entries.** Run:
-   ```bash
-   dks wiki list
-   ```
-   This returns a JSON array of `{"slug": "...", "layer": "..."}` objects (not a flat list of slugs). Iterate over these objects; the `layer` field tells you which layer owns each slug after shadowing (a project entry shadows a global entry with the same slug).
+> **Efficiency rule (since v0.3.4 / v0.3.6):** for a corpus-wide lint, **do NOT** call `dks blocks get` once per cited block_id. With ~80–100 citations across the wiki, that's 80–100 subprocess invocations and minutes of Python + spaCy startup overhead. **Use the bulk-then-check pattern** described in step 1 below: pull each entry's full payload once via `dks wiki list --with-content`, group citations by source, then call `dks blocks list <source>` once per source to enumerate which block_ids exist. Set-membership checks finish in seconds.
+>
+> Reach for per-id `dks blocks get` only when you need (a) divergent-shadow detection (the WARN line + `.shadows` field), (b) a block's `classification` field, or (c) the block's actual content. For both (a) and (b), batch by collecting unique block_ids first and fetching each once.
 
-2. **For each entry,** run:
+1. **Pull all entries with bodies in one call:**
    ```bash
-   dks wiki read <slug>
+   dks wiki list --with-content
    ```
-   This returns `{"entry": {...}, "layer": "..."}`. From `.entry`, capture `topic`, `source_refs`, and `body`. Record the `.layer` of the entry — you'll need it for the report and cross-layer checks.
+   This returns a JSON array of `{"slug": "...", "layer": "...", "entry": {...full WikiEntry...}}`. Capture `slug`, `layer`, `entry.topic`, `entry.source_refs`, `entry.body`, and `entry.classification` for each.
 
-3. **Per-entry checks:**
-   - For every `block_id` in `source_refs`, run `dks blocks get <block_id>`. If it returns a non-zero exit code or an error, record this as a **broken citation** (noting the entry's layer). If the block resolves successfully, inspect the JSON result: note the `.layer` returned — if the entry's layer is `project` but the block's layer is `global`, record this as a **cross-layer citation** (informational). Also check `.shadows`: for any shadow entry where `content_differs` is true (or equivalently, if a `WARN:` line appears in the command output), record this as a **divergent shadow** (see report template below).
-   - Extract every inline `[ref: <block_id>]` from the body. For each:
-     - If the cited block_id is NOT in `source_refs`, record as **inline drift (cited but not in source_refs)** (noting the entry's layer).
-   - For every `block_id` in `source_refs` that does NOT appear in any inline `[ref: ...]` in the body, record as **inline drift (in source_refs but not cited in body)** (noting the entry's layer).
-   - **Classification leak.** Fetch each cited block via `dks blocks get` and
-     read its `classification`. Compute `max_cited = max` of those (using the
-     order `public < internal < confidential < restricted`). If the wiki
-     entry's own `classification` is less strict than `max_cited`, record as a
-     classification leak.
+2. **Group citations by source_file and bulk-enumerate existence:**
+   ```bash
+   # For each distinct source referenced across all entries:
+   dks blocks list "<source_file>"
+   ```
+   Build a set of all existing block_ids across all referenced sources. Membership lookups against this set are how you detect **broken citations** — no per-id `blocks get` call required.
+
+3. **Per-entry checks** (still iterate per entry, but use the bulk sets from steps 1–2):
+   - **Broken citations:** for each `block_id` in `source_refs`, check membership in the existing-block_ids set built in step 2. Misses are broken citations (note the entry's layer).
+   - **Inline drift (body vs source_refs):** extract every inline `[ref: <block_id>]` from the body. If a cited block_id is NOT in `source_refs`, record as **inline drift (cited but not in source_refs)**. For every `block_id` in `source_refs` that does NOT appear in any inline `[ref: ...]` in the body, record as **inline drift (in source_refs but not cited in body)**.
+   - **Cross-layer citations:** when fetching the block (for classification or divergent-shadow checks below), inspect `.layer` in the returned JSON. If the entry's layer is `project` but the block's layer is `global`, record as a **cross-layer citation** (informational).
+   - **Divergent shadows:** for citations where the cited source has blocks in both project and global layers (visible by running `dks blocks list <source>` in both layer modes — or simply check `.shadows[*].content_differs` from a single `dks blocks get`), record any shadow with `content_differs: true` as a **divergent shadow**. The CLI also emits a `WARN:` line for these.
+   - **Classification leak:** fetch each unique cited block once via `dks blocks get` to read `.classification`. Compute `max_cited` of these (order: `public < internal < confidential < restricted`). If the entry's own classification is less strict than `max_cited`, record as a **classification leak**.
 
 4. **Cross-entry contradiction scan.** Read each entry's body. Flag any pair of entries that make directly opposing factual claims on the same narrow topic (e.g., entry A says "30 days" and entry B says "60 days" without versioning context). Be conservative — only flag direct, factual conflicts. Same word ≠ contradiction.
 
