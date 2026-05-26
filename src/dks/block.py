@@ -17,6 +17,7 @@ class NormalizedBlock(BaseModel):
     block_type: BlockType = "text"
     content: str
     classification: Classification = "internal"
+    redacted: bool = False
 
 
 def to_markdown(block: NormalizedBlock) -> str:
