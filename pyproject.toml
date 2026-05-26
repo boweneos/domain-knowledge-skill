@@ -1,6 +1,6 @@
 [project]
 name = "dks"
-version = "0.3.3"
+version = "0.3.4"
 description = "Domain knowledge skill — citation-grounded RAG for life-insurance code agents"
 requires-python = ">=3.12"
 dependencies = [

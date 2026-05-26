@@ -21,8 +21,9 @@ When Claude Code (or any consumer agent) writes code that touches regulated logi
 | `v0.3.1` (patch) | **PII pattern scan**: new `dks scan <path>` subcommand reports regex-based PII findings (TFN, Medicare, ABN, email, AU phone, DOB-shaped dates). `dks ingest` auto-scans and emits a stderr WARN if patterns found — operator still picks `--classification`. Advisory only; never auto-decides classification. |
 | `v0.3.2` (minor) | **Optional Presidio redaction**: `dks ingest --redact-pii` replaces detected PII (PERSON, EMAIL_ADDRESS, PHONE_NUMBER, AU_TFN, ...) with `[REDACTED:<TYPE>]` markers in block content. Requires the `redact` extra (`presidio-analyzer + presidio-anonymizer + spaCy`). `NormalizedBlock` gains a `redacted: bool` field. Without the flag, ingest behaviour is unchanged. |
 | `v0.3.3` (patch) | Walker corner case + install hint fixes from real-world mass-ingest. `--no-global` no longer makes auto-discovery match `~/.dks` as project (skip is always applied, even when global is suppressed). `[redact]` install hint corrected: `uv tool install --reinstall ... --with "en-core-web-lg @ <wheel-url>"` instead of broken `python -m spacy download` (which doesn't work in a uv tool venv). |
+| `v0.3.4` (patch) | **`--with-content` on `dks blocks list` and `dks wiki list`** — fetch the list AND full payload of each item in a single subprocess, eliminating the shell-loop / word-splitting hazard caused by block_ids containing spaces. Backwards compatible: output schema unchanged when flag is absent. |
 
-**Current version: 0.3.3.** 166 tests passing, mypy strict + ruff clean. Beyond unit tests: end-to-end smoke verified on the project's own design spec, layer cascade behaviour, a real cross-repo install (global at `~/.dks/`, project at `<other-repo>/.dks/`), classification guardrails (global-write rejection + `dks blocks get` WARN), AND a real mass-ingest of 43 Encompass underwriting docs into `~/.dks/` with Presidio redaction (~1545 blocks, 3.5 min).
+**Current version: 0.3.4.** 170 tests passing, mypy strict + ruff clean. Beyond unit tests: end-to-end smoke verified on the project's own design spec, layer cascade behaviour, a real cross-repo install (global at `~/.dks/`, project at `<other-repo>/.dks/`), classification guardrails (global-write rejection + `dks blocks get` WARN), AND a real mass-ingest of 43 Encompass underwriting docs into `~/.dks/` with Presidio redaction (~1545 blocks, 3.5 min).
 
 ---
 
@@ -210,13 +211,13 @@ All deterministic operations. Skills invoke these; you can also run them directl
 | `dks layers list` | Print active layers with resolution source (env / auto-discover / explicit / default) and existence. Useful for debugging. |
 | `dks ingest <path> [--root DIR] [--write-global] [--classification LEVEL] [--redact-pii]` | Parse + normalize + write blocks. `--root` (default `raw/`) defines the relative `source_file` path. Writes to project layer by default; `--write-global` forces global. `--classification` (default `internal`) sets the sensitivity level — confidential/restricted are rejected from global-write. Auto-scans for PII-like patterns; emits stderr WARN if found (advisory only). `--redact-pii` runs Presidio to scrub PII before writing (requires the `redact` extra). |
 | `dks scan <path>` | Scan a source file for PII-like patterns (TFN, Medicare, ABN, email, AU phone, DOB-shaped dates). Advisory only — does not change classification. Uses the parser registry, so works on PDF/DOCX/XLSX/MD. |
-| `dks blocks list <source_file>` | List `BlockHit`s across active layers: `[{"block_id", "layer"}, ...]` (deduped, project shadows global). |
+| `dks blocks list <source_file> [--with-content]` | List `BlockHit`s across active layers: `[{"block_id", "layer"}, ...]` (deduped, project shadows global). `--with-content` adds `"block": {full NormalizedBlock JSON}` to each row — preferred over shell loops when you need the full payload. |
 | `dks blocks get <block_id>` | Print `{"block": {...}, "layer": "..."}` from the first layer that has it. |
 | `dks pageindex write <source_file> [--write-global]` | Read JSON tree from stdin, persist as `<layer>/index/<source>.pageindex.json`. |
 | `dks pageindex read <source_file>` | Print `{"tree": {...}, "layer": "..."}`. |
 | `dks wiki write <slug> [--write-global] [--classification LEVEL]` | Read `{topic, source_refs, body}` JSON from stdin, persist as `<layer>/wiki/<slug>.md`. Same `--classification` semantics as ingest. |
 | `dks wiki read <slug>` | Print `{"entry": {...}, "layer": "..."}`. |
-| `dks wiki list` | List all wiki slugs across active layers: `[{"slug", "layer"}, ...]`. |
+| `dks wiki list [--with-content]` | List all wiki slugs across active layers: `[{"slug", "layer"}, ...]`. `--with-content` adds `"entry": {full WikiEntry JSON}` to each row. |
 | `dks wiki search <query>` | Keyword search over topic + body across layers; each `SearchHit` carries a `layer` tag. |
 
 Use `--help` on any subcommand for flags and defaults. Full layer semantics are documented in [`docs/USAGE.md` → Cascaded KB layers](docs/USAGE.md#cascaded-kb-layers).

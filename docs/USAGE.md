@@ -644,7 +644,33 @@ All LLM cost flows through Claude Code's own auth and billing. The `dks` Python 
 - **Don't auto-fix lint failures.** Lint is read-only by design. Failures require human judgment about whether a re-compile, a re-ingest, or a real policy change is the right response.
 - **Trust abstention.** When Claude Code says "the KB does not contain a citation for X," that's the contract working. Either fix the gap (compile a wiki entry) or accept the un-grounded code with eyes open.
 
-### Scripting against the CLI — shell-quoting gotcha
+### Scripting against the CLI
+
+#### Prefer `--with-content` over shell loops (since 0.3.4)
+
+The most common use of `dks blocks list` / `dks wiki list` is "get all blocks/entries for a source, then do something with each." Doing this in shell is fiddly because block_ids contain spaces (filenames like `"Encompass - Cannabis Use.pdf"`), which trips `for x in $(...)` word-splitting AND `echo "$var" | ...` JSON corruption.
+
+**Use `--with-content`** to fetch the list AND each item's full payload in a single subprocess:
+
+```bash
+# One call, one JSON document, no shell loops needed
+dks blocks list "Encompass - Cannabis Use.pdf" --with-content \
+  | jq -r '.[] | .block.content'
+
+# Equivalent for wiki entries
+dks wiki list --with-content \
+  | jq -r '.[] | "\(.slug): \(.entry.topic)"'
+```
+
+The output schema:
+- `blocks list --with-content` → `[{block_id, layer, block: {full NormalizedBlock JSON}}]`
+- `wiki list --with-content` → `[{slug, layer, entry: {full WikiEntry JSON}}]`
+
+For the case where you DO need a per-block command in shell, see the
+`while IFS= read -r` pattern below. But for "give me everything," `--with-content`
+is the cleaner path.
+
+#### Shell-quoting gotcha
 
 The CLI emits JSON with newlines escaped as `\n` (correct per the JSON spec). Bash's builtin `echo` interprets those escapes by default and converts `\n` to actual newline characters — which then breaks downstream JSON parsers with `Invalid control character` errors.
 
