@@ -6,7 +6,7 @@ When Claude Code (or any consumer agent) writes code that touches regulated logi
 
 ## Status
 
-**Shipped end-to-end. Current version: 0.3.3.** Four phases merged to `main` and tagged:
+**Shipped end-to-end. Current version: 0.3.5.** Four phases merged to `main` and tagged:
 
 | Tag | What |
 |---|---|
@@ -22,8 +22,9 @@ When Claude Code (or any consumer agent) writes code that touches regulated logi
 | `v0.3.2` (minor) | **Optional Presidio redaction**: `dks ingest --redact-pii` replaces detected PII (PERSON, EMAIL_ADDRESS, PHONE_NUMBER, AU_TFN, ...) with `[REDACTED:<TYPE>]` markers in block content. Requires the `redact` extra (`presidio-analyzer + presidio-anonymizer + spaCy`). `NormalizedBlock` gains a `redacted: bool` field. Without the flag, ingest behaviour is unchanged. |
 | `v0.3.3` (patch) | Walker corner case + install hint fixes from real-world mass-ingest. `--no-global` no longer makes auto-discovery match `~/.dks` as project (skip is always applied, even when global is suppressed). `[redact]` install hint corrected: `uv tool install --reinstall ... --with "en-core-web-lg @ <wheel-url>"` instead of broken `python -m spacy download` (which doesn't work in a uv tool venv). |
 | `v0.3.4` (patch) | **`--with-content` on `dks blocks list` and `dks wiki list`** — fetch the list AND full payload of each item in a single subprocess, eliminating the shell-loop / word-splitting hazard caused by block_ids containing spaces. Backwards compatible: output schema unchanged when flag is absent. |
+| `v0.3.5` (minor) | **Tuned Presidio default entity list + `--redact-entities` flag.** Real measurement on a 43-doc Encompass corpus showed Presidio's all-entities default over-fires on DATE_TIME (durations: "12 months"), LOCATION (internal acronyms: MLC/NEOS/URE), and US_DRIVER_LICENSE (version numbers: "1.0"). New default (`DEFAULT_REDACT_ENTITIES`): PERSON, EMAIL_ADDRESS, PHONE_NUMBER, AU_TFN, AU_MEDICARE, AU_ABN, CREDIT_CARD, IBAN_CODE. `--redact-entities all` reverts to full Presidio coverage; `--redact-entities A,B,C` uses a custom list. |
 
-**Current version: 0.3.4.** 170 tests passing, mypy strict + ruff clean. Beyond unit tests: end-to-end smoke verified on the project's own design spec, layer cascade behaviour, a real cross-repo install (global at `~/.dks/`, project at `<other-repo>/.dks/`), classification guardrails (global-write rejection + `dks blocks get` WARN), AND a real mass-ingest of 43 Encompass underwriting docs into `~/.dks/` with Presidio redaction (~1545 blocks, 3.5 min).
+**Current version: 0.3.5.** 163 tests passing, 4 skipped (presidio absent in dev venv), mypy strict + ruff clean.
 
 ---
 
@@ -209,7 +210,7 @@ All deterministic operations. Skills invoke these; you can also run them directl
 | Command | Purpose |
 |---|---|
 | `dks layers list` | Print active layers with resolution source (env / auto-discover / explicit / default) and existence. Useful for debugging. |
-| `dks ingest <path> [--root DIR] [--write-global] [--classification LEVEL] [--redact-pii]` | Parse + normalize + write blocks. `--root` (default `raw/`) defines the relative `source_file` path. Writes to project layer by default; `--write-global` forces global. `--classification` (default `internal`) sets the sensitivity level — confidential/restricted are rejected from global-write. Auto-scans for PII-like patterns; emits stderr WARN if found (advisory only). `--redact-pii` runs Presidio to scrub PII before writing (requires the `redact` extra). |
+| `dks ingest <path> [--root DIR] [--write-global] [--classification LEVEL] [--redact-pii] [--redact-entities LIST\|all]` | Parse + normalize + write blocks. `--root` (default `raw/`) defines the relative `source_file` path. Writes to project layer by default; `--write-global` forces global. `--classification` (default `internal`) sets the sensitivity level — confidential/restricted are rejected from global-write. Auto-scans for PII-like patterns; emits stderr WARN if found (advisory only). `--redact-pii` runs Presidio to scrub PII before writing (requires the `redact` extra). `--redact-entities all` uses full Presidio coverage; `--redact-entities A,B,C` uses a custom comma-separated list; default (omit flag) uses the tuned AU-insurance list (PERSON, EMAIL_ADDRESS, PHONE_NUMBER, AU_TFN, AU_MEDICARE, AU_ABN, CREDIT_CARD, IBAN_CODE). |
 | `dks scan <path>` | Scan a source file for PII-like patterns (TFN, Medicare, ABN, email, AU phone, DOB-shaped dates). Advisory only — does not change classification. Uses the parser registry, so works on PDF/DOCX/XLSX/MD. |
 | `dks blocks list <source_file> [--with-content]` | List `BlockHit`s across active layers: `[{"block_id", "layer"}, ...]` (deduped, project shadows global). `--with-content` adds `"block": {full NormalizedBlock JSON}` to each row — preferred over shell loops when you need the full payload. |
 | `dks blocks get <block_id>` | Print `{"block": {...}, "layer": "..."}` from the first layer that has it. |

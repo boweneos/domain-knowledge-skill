@@ -18,6 +18,28 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Any
 
+# Tuned default entity list for AU regulated-insurance corpora (v0.3.5+).
+#
+# Deliberately EXCLUDED (over-fire on typical policy/rule documents):
+#   DATE_TIME         — fires on durations ("12 months"), version dates ("May 2025")
+#   LOCATION          — fires on internal acronyms (MLC, NEOS, URE)
+#   US_DRIVER_LICENSE — fires on version numbers ("1.0", "2.0")
+#   URL, IP_ADDRESS, NRP — not relevant for insurance rule docs
+#   US_SSN, US_PASSPORT, etc. — US-specific, not relevant to AU corpus
+#
+# To revert to Presidio's full all-entities coverage (pre-0.3.5 behavior), pass
+# use_all=True to redact_text(), or use --redact-entities all on the CLI.
+DEFAULT_REDACT_ENTITIES: tuple[str, ...] = (
+    "PERSON",
+    "EMAIL_ADDRESS",
+    "PHONE_NUMBER",
+    "AU_TFN",
+    "AU_MEDICARE",
+    "AU_ABN",
+    "CREDIT_CARD",
+    "IBAN_CODE",
+)
+
 
 def _missing_dep_message() -> str:
     model_url = (
@@ -56,13 +78,28 @@ def _get_anonymizer() -> Any:
     return AnonymizerEngine()
 
 
-def redact_text(text: str, *, entities: list[str] | None = None) -> str:
+def redact_text(
+    text: str,
+    *,
+    entities: list[str] | None = None,
+    use_all: bool = False,
+) -> str:
     """Return `text` with detected PII entities replaced by `[REDACTED:<TYPE>]`.
 
-    `entities`: optional list of Presidio entity types to redact (e.g.
-    ["PERSON", "EMAIL_ADDRESS", "PHONE_NUMBER"]). Default: all entities
-    Presidio detects for English (plus Australian patterns Presidio supports
-    natively: AU_TFN, AU_MEDICARE, AU_ABN).
+    Entity selection (v0.3.5+):
+      - default (entities=None, use_all=False): redact only DEFAULT_REDACT_ENTITIES
+        — a tuned AU-insurance-focused list that excludes over-firing categories
+        (DATE_TIME on durations, LOCATION on internal acronyms, US_DRIVER_LICENSE
+        on version numbers).
+      - explicit list (entities=[...]): pass that list verbatim to Presidio.
+      - use_all=True: pass entities=None to Presidio (full coverage, including the
+        noisy categories — pre-0.3.5 behavior). Use --redact-entities all on the CLI.
+
+    NOTE: operators who need broader coverage (e.g. real DATE_TIME PII like a
+    customer's DOB written 1985-03-14) should pass use_all=True or an explicit
+    entity list including DATE_TIME. The default is a deliberate trade-off —
+    fewer false positives on rule documents, at the cost of missing some real PII
+    outside the default list.
 
     Raises ImportError with install hint if Presidio isn't available.
     """
@@ -77,7 +114,18 @@ def redact_text(text: str, *, entities: list[str] | None = None) -> str:
     except ImportError as e:
         raise ImportError(_missing_dep_message()) from e
 
-    results = analyzer.analyze(text=text, entities=entities, language="en")
+    # Resolve which entities to pass to Presidio.
+    # use_all=True → entities=None (Presidio default = all)
+    # entities=[...] → pass verbatim
+    # entities=None (default) → tuned DEFAULT_REDACT_ENTITIES
+    if use_all:
+        presidio_entities: list[str] | None = None
+    elif entities is not None:
+        presidio_entities = entities
+    else:
+        presidio_entities = list(DEFAULT_REDACT_ENTITIES)
+
+    results = analyzer.analyze(text=text, entities=presidio_entities, language="en")
     if not results:
         return text
 

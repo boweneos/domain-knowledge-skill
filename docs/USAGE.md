@@ -307,9 +307,8 @@ Patterns are regex-only (TFN, Medicare, ABN, email, AU phone, DOB-shaped dates) 
 ### Content redaction via Presidio (optional)
 
 For docs containing real PII, `dks ingest --redact-pii` runs Microsoft Presidio
-on each block's content before writing, replacing detected entities (PERSON,
-EMAIL_ADDRESS, PHONE_NUMBER, DATE_TIME, AU_TFN, AU_MEDICARE, AU_ABN, etc.)
-with `[REDACTED:<TYPE>]` markers.
+on each block's content before writing, replacing detected entities with
+`[REDACTED:<TYPE>]` markers.
 
 **Install the optional extra** (one-time):
 
@@ -341,14 +340,60 @@ Blocks land with redacted content and a `redacted: true` field. The citation
 chain is preserved (block_id traces to the original source span); only the
 extracted text is rewritten. The `raw/` file is untouched.
 
-**What Presidio does well:**
-- Names (PERSON)
-- Email addresses, phone numbers, dates
-- AU identifiers: TFN, Medicare, ABN
-- Other structured identifiers (credit cards, IP addresses, etc.)
+#### Tuned default entity list (v0.3.5+)
 
-**What it misses:**
-- Context-dependent identifiers (e.g. "the second claimant" referring to someone elsewhere named)
+Real measurement on a 43-doc Encompass underwriting corpus showed Presidio's
+default (all-entities) mode over-fires on regulated insurance rule documents:
+
+| Entity | Signal | Verdict |
+|---|---|---|
+| `DATE_TIME` | "12 months", "May 2025", duration bands "3-6 months" | Over-fires — keep |
+| `LOCATION` | Internal acronyms: MLC, NEOS, URE | Over-fires — keep |
+| `US_DRIVER_LICENSE` | Version strings: "1.0", "2.0" | Over-fires — keep |
+| `PERSON` | Document owners, approvers | Real PII — redact |
+| `EMAIL_ADDRESS` | Contact emails | Real PII — redact |
+
+From v0.3.5, `--redact-pii` uses a tuned default entity list that focuses on
+high-precision AU-insurance PII:
+
+```
+PERSON, EMAIL_ADDRESS, PHONE_NUMBER,
+AU_TFN, AU_MEDICARE, AU_ABN,
+CREDIT_CARD, IBAN_CODE
+```
+
+This eliminates the false-positive noise (a wiki article that says
+"rate at NEOS for 12 months" is much more readable than one with
+"rate at [REDACTED:LOCATION] for [REDACTED:DATE_TIME]").
+
+**Trade-off:** if a document contains entity types outside the default list (e.g.
+a real customer DOB written as `1985-03-14`, which looks like a DATE_TIME), it
+will NOT be auto-redacted by default. Operators who need broader coverage should
+use `--redact-entities all` or a custom list.
+
+#### `--redact-entities` flag
+
+```bash
+# Default: tuned AU-insurance list (PERSON, EMAIL_ADDRESS, PHONE_NUMBER, AU_TFN, ...)
+dks ingest path/to/audit.pdf --redact-pii
+
+# Full Presidio coverage (pre-0.3.5 behavior — includes DATE_TIME, LOCATION, etc.)
+dks ingest path/to/audit.pdf --redact-pii --redact-entities all
+
+# Custom explicit list
+dks ingest path/to/audit.pdf --redact-pii --redact-entities PERSON,EMAIL_ADDRESS,AU_TFN
+```
+
+The `--redact-entities` flag is only meaningful when `--redact-pii` is also set.
+
+**What Presidio does well (in any mode):**
+- Names (PERSON)
+- Email addresses, phone numbers
+- AU identifiers: TFN, Medicare, ABN
+- Structured financial identifiers (credit cards, IBAN)
+
+**What it misses regardless of entity list:**
+- Context-dependent identifiers (e.g. "the second claimant" referring to someone named elsewhere)
 - Names with unusual formats
 - Indirect identifiers (rare condition + location + age combination)
 
