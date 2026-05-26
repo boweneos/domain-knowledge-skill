@@ -103,6 +103,14 @@ def ingest(
         "--classification",
         help="Sensitivity level: public | internal | confidential | restricted. Default: internal.",
     ),
+    redact_pii: bool = typer.Option(
+        False,
+        "--redact-pii",
+        help=(
+            "Run Presidio to replace detected PII with [REDACTED:<TYPE>] before writing. "
+            "Requires the 'redact' extra."
+        ),
+    ),
 ) -> None:
     """Parse, normalize, and persist a source document into the active write layer."""
     _reject_sensitive_global_write(classification, write_global)
@@ -137,7 +145,20 @@ def ingest(
             err=True,
         )
 
+    # Redaction (v0.3.2): lazy import Presidio; surface ImportError as exit-2
+    if redact_pii:
+        try:
+            from dks.redact import redact_text
+            items = [
+                item.model_copy(update={"content": redact_text(item.content)}) for item in items
+            ]
+        except ImportError as e:
+            typer.echo(f"error: {e}", err=True)
+            raise typer.Exit(code=2) from e
+
     blocks = normalize(source_file=source_file, items=items, classification=classification)
+    if redact_pii:
+        blocks = [b.model_copy(update={"redacted": True}) for b in blocks]
     written = write_blocks(blocks, write_layer)
     typer.echo(f"wrote {len(written)} blocks to {write_layer.normalized_dir}/{source_file}/")
 

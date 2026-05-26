@@ -304,6 +304,45 @@ Patterns are regex-only (TFN, Medicare, ABN, email, AU phone, DOB-shaped dates) 
 
 `dks ingest` also runs this scan automatically and emits a stderr `WARN` if patterns are found. The ingest still proceeds with whatever `--classification` you passed (default `internal`); the warning is there so the operator can re-ingest with a stricter classification if appropriate.
 
+### Content redaction via Presidio (optional)
+
+For docs containing real PII, `dks ingest --redact-pii` runs Microsoft Presidio
+on each block's content before writing, replacing detected entities (PERSON,
+EMAIL_ADDRESS, PHONE_NUMBER, DATE_TIME, AU_TFN, AU_MEDICARE, AU_ABN, etc.)
+with `[REDACTED:<TYPE>]` markers.
+
+**Install the optional extra** (one-time):
+
+```bash
+uv tool install --with presidio-analyzer --with presidio-anonymizer dks
+python -m spacy download en_core_web_lg   # ~500MB, one-time download
+```
+
+**Usage:**
+
+```bash
+dks ingest path/to/audit.pdf --classification confidential --redact-pii
+```
+
+Blocks land with redacted content and a `redacted: true` field. The citation
+chain is preserved (block_id traces to the original source span); only the
+extracted text is rewritten. The `raw/` file is untouched.
+
+**What Presidio does well:**
+- Names (PERSON)
+- Email addresses, phone numbers, dates
+- AU identifiers: TFN, Medicare, ABN
+- Other structured identifiers (credit cards, IP addresses, etc.)
+
+**What it misses:**
+- Context-dependent identifiers (e.g. "the second claimant" referring to someone elsewhere named)
+- Names with unusual formats
+- Indirect identifiers (rare condition + location + age combination)
+
+Treat redaction as a strong default, not a complete defense. For high-risk
+material, redact upstream of `raw/` with a dedicated tool and a human review
+pass, then ingest the redacted version normally.
+
 ---
 
 ## Step 1 — Curate `raw/`

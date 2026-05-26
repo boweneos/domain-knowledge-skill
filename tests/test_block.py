@@ -77,3 +77,30 @@ def test_parse_markdown_rejects_unterminated_frontmatter():
 
     with pytest.raises(ValueError, match="frontmatter"):
         parse_markdown("---\nblock_id: x\nstill in frontmatter\n")
+
+
+def test_normalized_block_default_redacted_is_false():
+    block = NormalizedBlock(
+        source_file="a.md",
+        block_id="a.md#L1-1",
+        locator=MarkdownLocator(heading_path=[], line_start=1, line_end=1),
+        block_type="text",
+        content="x",
+    )
+    assert block.redacted is False
+
+
+def test_normalized_block_redacted_persists_through_roundtrip():
+    original = NormalizedBlock(
+        source_file="a.md",
+        block_id="a.md#L1-1",
+        locator=MarkdownLocator(heading_path=[], line_start=1, line_end=1),
+        block_type="text",
+        content="[REDACTED:PERSON] phoned in",
+        classification="confidential",
+        redacted=True,
+    )
+    md = to_markdown(original)
+    parsed = parse_markdown(md)
+    assert parsed.redacted is True
+    assert parsed.content.startswith("[REDACTED:")

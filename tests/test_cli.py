@@ -1,5 +1,6 @@
 import json
 
+import pytest
 from typer.testing import CliRunner
 
 from dks.cli import app
@@ -9,6 +10,15 @@ runner = CliRunner()
 
 def _invoke(args: list[str], stdin: str | None = None, env: dict | None = None):
     return runner.invoke(app, args, input=stdin, env=env)
+
+
+def _presidio_installed() -> bool:
+    try:
+        import presidio_analyzer  # noqa: F401
+        import presidio_anonymizer  # noqa: F401
+        return True
+    except ImportError:
+        return False
 
 
 # --- ingest ---------------------------------------------------------------
@@ -534,3 +544,54 @@ def test_ingest_no_warn_when_clean(tmp_path):
     # No PII WARN. (Classification WARN only fires for confidential/restricted.)
     # Allow other unrelated WARN lines but specifically no "PII-like patterns".
     assert "PII-like patterns" not in res.output
+
+
+# --- redact-pii ---
+
+def test_ingest_redact_pii_without_presidio_errors(tmp_path, monkeypatch):
+    # Force ImportError by stubbing out presidio modules so dks.redact raises ImportError
+    import sys
+    monkeypatch.setitem(sys.modules, "presidio_analyzer", None)
+    monkeypatch.setitem(sys.modules, "presidio_anonymizer", None)
+    # Also remove dks.redact from sys.modules so its lazy import is re-triggered
+    monkeypatch.delitem(sys.modules, "dks.redact", raising=False)
+    project = tmp_path / "proj"
+    project.mkdir()
+    src = tmp_path / "raw" / "x.md"
+    src.parent.mkdir()
+    src.write_text("Hello.")
+    res = _invoke(
+        ["--project", str(project), "--no-global",
+         "ingest", str(src), "--root", str(src.parent), "--redact-pii"],
+    )
+    assert res.exit_code != 0
+    assert "redact" in res.output.lower() or "presidio" in res.output.lower()
+
+
+@pytest.mark.skipif(
+    not _presidio_installed(),
+    reason="presidio not installed; --redact-pii path skipped",
+)
+def test_ingest_with_redact_pii_writes_redacted_blocks(tmp_path):
+    project = tmp_path / "proj"
+    project.mkdir()
+    src = tmp_path / "raw" / "audit.md"
+    src.parent.mkdir()
+    src.write_text("Customer John Smith emailed alice@example.com about claim.")
+
+    res = _invoke(
+        ["--project", str(project), "--no-global",
+         "ingest", str(src), "--root", str(src.parent), "--redact-pii"],
+    )
+    assert res.exit_code == 0, res.output
+
+    get_res = _invoke(
+        ["--project", str(project), "--no-global",
+         "blocks", "get", "audit.md#L1-1"],
+    )
+    payload = json.loads(get_res.output[get_res.output.find("{"):])
+    assert payload["block"]["redacted"] is True
+    content = payload["block"]["content"]
+    assert "John Smith" not in content
+    assert "alice@example.com" not in content
+    assert "[REDACTED:" in content
