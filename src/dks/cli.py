@@ -16,7 +16,7 @@ from dks.layers import KbLayer, KbLayers, resolve_layers
 from dks.normalizer import normalize
 from dks.parsers import get_parser
 from dks.search import search_wiki
-from dks.store.blocks import get_block, list_blocks
+from dks.store.blocks import BlockFetchResult, get_block, list_blocks
 from dks.store.pageindex import read_pageindex, write_pageindex
 from dks.store.wiki import WikiEntry, list_wiki_entries, read_wiki_entry, write_wiki_entry
 from dks.writer import write_blocks
@@ -128,11 +128,25 @@ def blocks_get(ctx: typer.Context, block_id: str = typer.Argument(...)) -> None:
     """Fetch a NormalizedBlock + the layer that served it (JSON)."""
     layers = _layers(ctx)
     try:
-        block, layer_name = get_block(layers, block_id=block_id)
+        result: BlockFetchResult = get_block(layers, block_id=block_id)
     except FileNotFoundError as e:
         typer.echo(f"error: {e}", err=True)
         raise typer.Exit(code=2) from e
-    payload = {"block": block.model_dump(), "layer": layer_name}
+    for shadow in result.shadows:
+        if shadow.content_differs:
+            typer.echo(
+                f"WARN: block {block_id} in layer {result.layer} shadows"
+                f" {shadow.layer} with different content",
+                err=True,
+            )
+    shadows_payload = [
+        {"layer": s.layer, "content_differs": s.content_differs} for s in result.shadows
+    ]
+    payload = {
+        "block": result.block.model_dump(),
+        "layer": result.layer,
+        "shadows": shadows_payload,
+    }
     typer.echo(json.dumps(payload, indent=2, default=str))
 
 
