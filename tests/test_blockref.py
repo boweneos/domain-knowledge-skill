@@ -72,3 +72,19 @@ def test_roundtrip_pdf_with_clause():
     src, loc = decode_blockref(ref)
     assert src == "policies/claims.pdf"
     assert loc == original
+
+
+def test_decode_markdown_returns_empty_heading_path_by_design():
+    """Documents the intentional lossy behaviour: Markdown BlockRef format
+    encodes only line range, so heading_path is always [] after decode.
+    Callers needing the full locator should use store.blocks.get_block instead.
+    """
+    original = MarkdownLocator(heading_path=["A", "B", "C"], line_start=10, line_end=15)
+    ref = encode_blockref("notes.md", original)
+    _, decoded = decode_blockref(ref)
+    assert isinstance(decoded, MarkdownLocator)
+    assert decoded.heading_path == []
+    assert decoded.line_start == 10
+    assert decoded.line_end == 15
+    # The original locator had heading_path; the decoded one does not — by design.
+    assert decoded != original

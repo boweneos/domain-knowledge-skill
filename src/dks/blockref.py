@@ -35,6 +35,22 @@ _MD_RE = re.compile(r"^L(?P<start>\d+)-(?P<end>\d+)$")
 
 
 def decode_blockref(ref: str) -> tuple[str, Locator]:
+    """Reconstruct (source_file, Locator) from a BlockRef string.
+
+    **Important — Markdown caveat:** the Markdown BlockRef format encodes only
+    `L<start>-<end>`, NOT the `heading_path`. So when decoding a Markdown
+    BlockRef, the returned `MarkdownLocator` has `heading_path=[]`. The encoded
+    format is deliberately heading-path-free so refs stay stable across edits
+    that rename headings without moving the underlying lines.
+
+    If you need the full locator (with `heading_path` populated), call
+    `dks.store.blocks.get_block(layers, block_id)` instead — it loads the
+    locator from the on-disk normalized block, which always carries the
+    complete frontmatter.
+
+    Other doc types (PDF, DOCX, Excel) round-trip fully — no information is
+    lost on decode.
+    """
     if "#" not in ref:
         raise ValueError(f"malformed BlockRef (no '#'): {ref!r}")
 

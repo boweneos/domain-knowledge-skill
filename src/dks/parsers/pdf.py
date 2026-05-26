@@ -1,12 +1,15 @@
 """PDF parser via pypdf — text extraction with page-level PdfLocator.
 
-Library chosen: pypdf>=4.0 (pure Python, no ML, no network I/O). It handles
-clean, text-extractable PDFs (the Phase 2 v0 fixture is a 2-page reportlab PDF
-with no images or complex layout). pdfplumber, pymupdf, or docling are
-reasonable escalation paths if OCR or complex column layout is needed.
+Phase 2 v0 only handles clean, text-extractable PDFs (no OCR, no complex
+layout). Heuristics: each page contributes one TypedContentItem per
+non-empty extracted block, with page index recorded in the locator.
 
-Phase 2 v0 scope: each page contributes one TypedContentItem per non-empty
-paragraph block. Section detection is deferred to Phase 3.
+**Limitation — block_type is always 'text' for PDFs.** pypdf extracts a flat
+text stream per page with no preserved structure markers, so we can't
+reliably detect tables, lists, headings, or code blocks. Section / clause
+detection would require a layout-aware parser (MinerU, pdfplumber with
+custom heuristics, etc.) and is a deferred upgrade — see the Phase 2
+carryover notes for context.
 """
 
 from pathlib import Path

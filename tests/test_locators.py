@@ -61,3 +61,14 @@ def test_locator_discriminated_union_roundtrip():
     parsed = adapter.validate_python({"kind": "pdf", "page": 1, "section": "1.0"})
     assert isinstance(parsed, PdfLocator)
     assert parsed.section == "1.0"
+
+
+def test_markdown_locator_rejects_line_end_lt_line_start():
+    with pytest.raises(ValidationError):
+        MarkdownLocator(heading_path=[], line_start=5, line_end=3)
+
+
+def test_markdown_locator_allows_equal_line_start_and_end():
+    loc = MarkdownLocator(heading_path=[], line_start=5, line_end=5)
+    assert loc.line_start == 5
+    assert loc.line_end == 5

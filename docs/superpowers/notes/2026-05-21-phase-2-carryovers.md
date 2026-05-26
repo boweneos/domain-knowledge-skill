@@ -9,11 +9,11 @@ Notes from the Phase 1 final review (sonnet, 2026-05-21). All five items are **n
 | 1 | `source_file` scoping (basename collision) | ✅ addressed | Phase 2 Task 0: `dks ingest --root <dir>` computes relative path |
 | 2 | `PdfLocator.clause` unused by encoder | ✅ addressed | Phase 2 Task 0: clause now encoded as `<file>#p<page>#<section>#<clause>`; `_PDF_RE` updated |
 | 3 | BOM handling in Markdown parser | ✅ addressed | Phase 2 Task 0: `read_text(encoding="utf-8-sig")` |
-| 4 | `heading_path` lossy in `decode_blockref` | ⚠ open | Documented behaviour; not a citation-integrity bug (`check_block` re-encodes from the live locator). Only matters if a future consumer calls `decode_blockref` and expects to recover heading_path. |
-| 5 | `block_type` forward declarations (`table`/`list`/`code`) | ◐ partially | Excel parser emits `table`; DOCX/PDF parsers still only emit `text`/`heading`. Refinement deferred. |
-| 6 | Cross-field validator on `MarkdownLocator` (`line_end >= line_start`) | ⚠ open | Not currently exploited. Worth adding before accepting locators from external callers. |
+| 4 | `heading_path` lossy in `decode_blockref` | ✅ fixed in 0.2.3 | Loud docstring on `decode_blockref` explains the intentional lossy behaviour and directs callers to `store.blocks.get_block` for the full locator. Explicit roundtrip test pins down the behaviour (heading_path=[] after decode, line range preserved). |
+| 5 | `block_type` forward declarations (`table`/`list`/`code`) | ✅ fixed in 0.2.3 | DOCX: `_block_type_from_label` maps all Docling labels (header→heading, list/enumeration→list, table→table, code→code, else→text). Markdown: code-fence detection (``` and ~~~) emits block_type='code'; unterminated fences handled gracefully. PDF: docstring explicitly notes pypdf flat extraction cannot detect structure; block_type always 'text'. |
+| 6 | Cross-field validator on `MarkdownLocator` (`line_end >= line_start`) | ✅ fixed in 0.2.3 | `@model_validator(mode="after")` on `MarkdownLocator` enforces `line_end >= line_start`; equality permitted (single-line blocks). Two tests cover rejection and equality cases. |
 
-Items 1-3 closed in Phase 2; items 4-6 remain explicit open follow-ups (none blocking).
+Items 1-3 closed in Phase 2; items 4-6 closed in 0.2.3 (carryover-456 branch).
 
 ## Findings from Phase 4 + real-world testing (2026-05-26)
 

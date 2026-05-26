@@ -66,3 +66,46 @@ def test_parse_markdown_strips_utf8_bom(tmp_path):
     # The BOM should be stripped from the heading content
     assert "﻿" not in headings[0].content
     assert "# Heading" in headings[0].content
+
+
+def test_parse_markdown_detects_code_fences(tmp_path):
+    src = tmp_path / "x.md"
+    src.write_text(
+        "Some prose.\n\n"
+        "```python\n"
+        "def foo():\n"
+        "    return 42\n"
+        "```\n\n"
+        "More prose.\n"
+    )
+    items = parse_markdown_file(src)
+    code_items = [i for i in items if i.block_type == "code"]
+    assert len(code_items) == 1
+    assert "def foo()" in code_items[0].content
+    assert "return 42" in code_items[0].content
+    # Fence lines themselves should NOT be in the code content
+    assert "```" not in code_items[0].content
+    # Surrounding prose should be separate text blocks
+    text_items = [i for i in items if i.block_type == "text"]
+    bodies = " ".join(t.content for t in text_items)
+    assert "Some prose" in bodies
+    assert "More prose" in bodies
+
+
+def test_parse_markdown_handles_tilde_fences(tmp_path):
+    src = tmp_path / "x.md"
+    src.write_text("~~~\nplain code\n~~~\n")
+    items = parse_markdown_file(src)
+    code_items = [i for i in items if i.block_type == "code"]
+    assert len(code_items) == 1
+    assert code_items[0].content == "plain code"
+
+
+def test_parse_markdown_unterminated_fence_emits_code_to_eof(tmp_path):
+    src = tmp_path / "x.md"
+    src.write_text("```\nleft open\nstill open\n")
+    items = parse_markdown_file(src)
+    code_items = [i for i in items if i.block_type == "code"]
+    assert len(code_items) == 1
+    assert "left open" in code_items[0].content
+    assert "still open" in code_items[0].content
