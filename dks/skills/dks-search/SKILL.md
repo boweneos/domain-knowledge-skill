@@ -50,9 +50,12 @@ For each `block_id` in the `source_refs` of a relevant hit, run:
 ```bash
 dks blocks get "<block_id>"
 ```
-This returns a JSON object with two top-level fields:
+This returns a JSON object with three top-level fields:
 - `.block` — the full block JSON: `{source_file, block_id, locator, block_type, content}`.
 - `.layer` — which layer resolved this block (`"project"` or `"global"`).
+- `.shadows` — a list of lower-precedence blocks at the same `block_id`, each with `{"layer": "...", "content_differs": bool}`. An empty list means no shadowing occurred.
+
+If the command also prints a line beginning with `WARN:` to stderr (CliRunner surfaces it in output), it means the served block's content diverges from a same-id block in a lower layer. Surface that to the user using the "Project overrides global" edge-case template below.
 
 Use `.block.content` as your source of truth (not the wiki snippet). Use `.block.locator` for the citation primitive (page, section/clause for PDFs; sheet+cells for Excel; etc.). Capture `.layer` — you'll include it in citations.
 

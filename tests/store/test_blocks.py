@@ -66,9 +66,9 @@ def test_get_block_project_wins(tmp_path):
     layers = KbLayers(project=proj, global_layer=glb)
     _seed(proj, "claims.md", [(1, 1, "proj-content")])
     _seed(glb, "claims.md", [(1, 1, "global-content")])
-    block, layer_name = get_block(layers, block_id="claims.md#L1-1")
-    assert block.content == "proj-content"
-    assert layer_name == "project"
+    result = get_block(layers, block_id="claims.md#L1-1")
+    assert result.block.content == "proj-content"
+    assert result.layer == "project"
 
 
 def test_get_block_falls_back_to_global(tmp_path):
@@ -76,12 +76,50 @@ def test_get_block_falls_back_to_global(tmp_path):
     glb = _layer("global", tmp_path / "g")
     layers = KbLayers(project=proj, global_layer=glb)
     _seed(glb, "claims.md", [(7, 9, "only-global")])
-    block, layer_name = get_block(layers, block_id="claims.md#L7-9")
-    assert block.content == "only-global"
-    assert layer_name == "global"
+    result = get_block(layers, block_id="claims.md#L7-9")
+    assert result.block.content == "only-global"
+    assert result.layer == "global"
 
 
 def test_get_block_missing_raises(tmp_path):
     layers = KbLayers(project=_layer("project", tmp_path / "p"), global_layer=None)
     with pytest.raises(FileNotFoundError):
         get_block(layers, block_id="absent.md#L1-1")
+
+
+def test_get_block_returns_no_shadows_when_only_one_layer(tmp_path):
+    proj = _layer("project", tmp_path / "p")
+    layers = KbLayers(project=proj, global_layer=None)
+    _seed(proj, "claims.md", [(1, 1, "only-proj")])
+    result = get_block(layers, block_id="claims.md#L1-1")
+    assert result.block.content == "only-proj"
+    assert result.layer == "project"
+    assert result.shadows == ()
+
+
+def test_get_block_records_identical_shadow_without_divergence(tmp_path):
+    proj = _layer("project", tmp_path / "p")
+    glb = _layer("global", tmp_path / "g")
+    layers = KbLayers(project=proj, global_layer=glb)
+    _seed(proj, "claims.md", [(1, 1, "same")])
+    _seed(glb, "claims.md", [(1, 1, "same")])
+    result = get_block(layers, block_id="claims.md#L1-1")
+    assert result.block.content == "same"
+    assert result.layer == "project"
+    assert len(result.shadows) == 1
+    assert result.shadows[0].layer == "global"
+    assert result.shadows[0].content_differs is False
+
+
+def test_get_block_flags_divergent_shadow(tmp_path):
+    proj = _layer("project", tmp_path / "p")
+    glb = _layer("global", tmp_path / "g")
+    layers = KbLayers(project=proj, global_layer=glb)
+    _seed(proj, "claims.md", [(1, 1, "project-version")])
+    _seed(glb, "claims.md", [(1, 1, "global-version")])
+    result = get_block(layers, block_id="claims.md#L1-1")
+    assert result.block.content == "project-version"
+    assert result.layer == "project"
+    assert len(result.shadows) == 1
+    assert result.shadows[0].layer == "global"
+    assert result.shadows[0].content_differs is True

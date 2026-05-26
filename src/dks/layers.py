@@ -1,7 +1,7 @@
 """KB layer resolution — global + project, project shadows global on reads."""
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -35,6 +35,7 @@ class KbLayers:
 
     project: KbLayer | None
     global_layer: KbLayer | None
+    resolution: dict[str, str] = field(default_factory=dict)
 
     def for_read(self) -> tuple[KbLayer, ...]:
         """Read order: project first, then global. Empty layers omitted."""
@@ -102,21 +103,35 @@ def resolve_layers(
     # avoiding the case where the walker climbs to the user's home dir and matches
     # the global layer's own location as a project layer.
     resolved_global_base: Path | None
+    global_source: str | None = None
     if include_global:
         if global_base is None:
             env_global = os.environ.get("DKS_GLOBAL")
-            resolved_global_base = Path(env_global) if env_global else Path.home() / ".dks"
+            if env_global:
+                resolved_global_base = Path(env_global)
+                global_source = "env"
+            else:
+                resolved_global_base = Path.home() / ".dks"
+                global_source = "default"
         else:
             resolved_global_base = global_base
+            global_source = "explicit"
     else:
         resolved_global_base = None
+        global_source = "suppressed"
 
+    project_source: str | None = None
     if project is None:
         env_project = os.environ.get("DKS_PROJECT")
         if env_project:
             project = Path(env_project)
+            project_source = "env"
         else:
             project = _auto_discover_project(cwd, skip=resolved_global_base)
+            if project is not None:
+                project_source = "auto-discover"
+    else:
+        project_source = "explicit"
 
     project_layer = KbLayer(name="project", base=project) if project is not None else None
 
@@ -126,4 +141,10 @@ def resolve_layers(
         else None
     )
 
-    return KbLayers(project=project_layer, global_layer=global_layer)
+    resolution: dict[str, str] = {}
+    if project_source is not None:
+        resolution["project"] = project_source
+    if global_source is not None:
+        resolution["global"] = global_source
+
+    return KbLayers(project=project_layer, global_layer=global_layer, resolution=resolution)

@@ -27,7 +27,7 @@ The user names:
 
 ## Procedure
 
-1. **Gather blocks.** For each source_file, run `dks blocks list <source>`. This returns a JSON array of `{"block_id": "...", "layer": "..."}` objects (not a flat list of strings) — extract the `block_id` values and note their layers. For each `block_id` (whether from the user or from the list), run `dks blocks get <block_id>`. This returns `{"block": {...}, "layer": "..."}` — use `.block` for the block content and note `.layer` for citation tagging.
+1. **Gather blocks.** For each source_file, run `dks blocks list <source>`. This returns a JSON array of `{"block_id": "...", "layer": "..."}` objects (not a flat list of strings) — extract the `block_id` values and note their layers. For each `block_id` (whether from the user or from the list), run `dks blocks get <block_id>`. This returns `{"block": {...}, "layer": "...", "shadows": [...]}` — use `.block` for the block content and note `.layer` for citation tagging. The `.shadows` field lists any lower-precedence blocks at the same `block_id` as `{"layer": "...", "content_differs": bool}`; if `content_differs` is true (or a `WARN:` line appears in the output), note the divergence explicitly when authoring the article.
 
 2. **Compose the article.** Write a Markdown article on the topic. Rules:
    - Every factual statement must end with an inline citation: `[ref: <block_id>]`.

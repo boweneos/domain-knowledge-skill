@@ -215,6 +215,14 @@ When no `--project` flag or `DKS_PROJECT` env var is set, the CLI walks up from 
 
 **One subtlety (fixed in 0.2.1):** the walker explicitly skips the global layer's resolved location. Without this, running `dks` from anywhere under `$HOME` would find `~/.dks` (the default global) and treat it as the project layer, causing both layers to resolve to the same directory. After 0.2.1, the walker silently passes over the global location and continues climbing — returning `None` (project-less, global-only mode) if nothing closer exists.
 
+If you're not sure which layers `dks` is actually using, run:
+
+```bash
+dks layers list
+```
+
+It prints a JSON array of active layers with `name`, `base` (absolute path), `source` (how it was resolved — `explicit`, `env`, `auto-discover`, or `default`), and `exists` (does the base dir exist?). This is the fastest way to diagnose "why is `dks` finding the wrong layer?" — the `source` field shows where the path came from.
+
 ### Suppressing the global layer
 
 Pass `--no-global` to any command if you want project-only mode (no global fallback for reads, no `~/.dks/` writes). Useful when working in a sandboxed corpus where you don't want cross-talk.

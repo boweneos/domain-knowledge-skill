@@ -34,7 +34,7 @@ The user names a `source_file` (e.g. `policies/claims_handling.pdf`). Layer flag
    ```bash
    dks blocks get "$BLOCK_ID"
    ```
-   This returns a JSON object with two top-level fields: `.block` (the full block JSON with `content`, `block_type`, `locator`, etc.) and `.layer` (which layer resolved this block). Use `.block.content`, `.block.block_type`, and `.block.locator` for the tree-building step below.
+   This returns a JSON object with three top-level fields: `.block` (the full block JSON with `content`, `block_type`, `locator`, etc.), `.layer` (which layer resolved this block), and `.shadows` (a list of `{"layer": "...", "content_differs": bool}` entries for any same-id blocks found in lower-precedence layers — empty when there is no shadowing). Use `.block.content`, `.block.block_type`, and `.block.locator` for the tree-building step below. If the command emits a `WARN:` line, the served block differs from a lower-layer block — note this in your report to the user but continue building the tree from `.block`.
 
 3. **Reason over the structure.** Headings (`block_type == "heading"`) define section boundaries; text/table/list/code blocks belong to the most recent heading. Build a tree where each node has:
    - `title`: the heading text (or a synthesized title for the root)

@@ -108,6 +108,54 @@ def test_blocks_get_includes_layer(tmp_path):
     payload = json.loads(res.output)
     assert payload["block"]["content"].startswith("First line")
     assert payload["layer"] == "project"
+    assert payload.get("shadows") == []
+
+
+def test_blocks_get_warns_on_divergent_shadow(tmp_path):
+    # Set up project and global with same block_id but different content
+    project = tmp_path / "proj"
+    global_base = tmp_path / "glob"
+    project.mkdir()
+    global_base.mkdir()
+    # Quick way: use ingest with --write-global, then with default project
+    src = tmp_path / "raw" / "notes.md"
+    src.parent.mkdir()
+    src.write_text("original content\n")
+    _invoke(
+        ["--project", str(project), "--global", str(global_base),
+         "ingest", str(src), "--root", str(src.parent), "--write-global"],
+    )
+    # Overwrite source with different content and ingest into project
+    src.write_text("project override content\n")
+    _invoke(
+        ["--project", str(project), "--global", str(global_base),
+         "ingest", str(src), "--root", str(src.parent)],
+    )
+    res = _invoke(
+        ["--project", str(project), "--global", str(global_base),
+         "blocks", "get", "notes.md#L1-1"],
+    )
+    assert res.exit_code == 0, res.output
+    # Expect a stderr-style WARN line embedded in res.output (CliRunner combines stdout+stderr)
+    assert "WARN" in res.output
+    assert "shadows" in res.output.lower()
+
+
+def test_blocks_get_no_warning_when_no_divergence(tmp_path):
+    # Same content in both layers → no WARN
+    project = tmp_path / "proj"
+    global_base = tmp_path / "glob"
+    project.mkdir()
+    global_base.mkdir()
+    src = tmp_path / "raw" / "notes.md"
+    src.parent.mkdir()
+    src.write_text("identical content\n")
+    common = ["--project", str(project), "--global", str(global_base)]
+    _invoke(common + ["ingest", str(src), "--root", str(src.parent), "--write-global"])
+    _invoke(common + ["ingest", str(src), "--root", str(src.parent)])
+    res = _invoke(common + ["blocks", "get", "notes.md#L1-1"])
+    assert res.exit_code == 0, res.output
+    assert "WARN" not in res.output
 
 
 def test_blocks_get_missing_returns_nonzero(tmp_path):
@@ -200,6 +248,40 @@ def test_wiki_search_returns_layer(tmp_path):
     assert len(hits) == 1
     assert hits[0]["slug"] == "pii"
     assert hits[0]["layer"] == "project"
+
+
+# --- layers ---------------------------------------------------------------
+
+def test_layers_list_project_explicit(tmp_path):
+    project = tmp_path / "proj"
+    global_base = tmp_path / "glob"
+    project.mkdir()
+    global_base.mkdir()
+    res = _invoke(["--project", str(project), "--global", str(global_base), "layers", "list"])
+    assert res.exit_code == 0, res.output
+    rows = json.loads(res.output)
+    by_name = {r["name"]: r for r in rows}
+    assert by_name["project"]["source"] == "explicit"
+    assert by_name["project"]["base"] == str(project.resolve())
+    assert by_name["project"]["exists"] is True
+    assert by_name["global"]["source"] == "explicit"
+
+
+def test_layers_list_no_global_hides_global(tmp_path):
+    project = tmp_path / "proj"
+    project.mkdir()
+    res = _invoke(["--project", str(project), "--no-global", "layers", "list"])
+    assert res.exit_code == 0, res.output
+    rows = json.loads(res.output)
+    assert [r["name"] for r in rows] == ["project"]
+
+
+def test_layers_list_marks_missing_base(tmp_path):
+    project = tmp_path / "proj"  # NOT created
+    res = _invoke(["--project", str(project), "--no-global", "layers", "list"])
+    assert res.exit_code == 0, res.output
+    [row] = json.loads(res.output)
+    assert row["exists"] is False
 
 
 def test_wiki_project_shadows_global_via_cli(tmp_path):

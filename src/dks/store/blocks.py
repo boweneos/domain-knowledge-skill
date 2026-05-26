@@ -1,6 +1,6 @@
 """Block store reader — layer-aware. Project shadows global on collision."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from dks.block import NormalizedBlock, parse_markdown
@@ -12,6 +12,19 @@ from dks.writer import safe_filename
 class BlockHit:
     block_id: str
     layer: str
+
+
+@dataclass(frozen=True)
+class ShadowedBlock:
+    layer: str
+    content_differs: bool
+
+
+@dataclass(frozen=True)
+class BlockFetchResult:
+    block: NormalizedBlock
+    layer: str
+    shadows: tuple[ShadowedBlock, ...] = field(default_factory=tuple)
 
 
 def list_blocks(layers: KbLayers, source_file: str) -> list[BlockHit]:
@@ -30,12 +43,33 @@ def list_blocks(layers: KbLayers, source_file: str) -> list[BlockHit]:
     return list(seen.values())
 
 
-def get_block(layers: KbLayers, block_id: str) -> tuple[NormalizedBlock, str]:
-    """Load the NormalizedBlock + which layer served it. Project first, fall back to global."""
+def get_block(layers: KbLayers, block_id: str) -> BlockFetchResult:
+    """Load the NormalizedBlock + which layer served it. Project first, fall back to global.
+
+    Returns a BlockFetchResult with the served block, the layer name, and any ShadowedBlocks
+    found at the same block_id in lower-precedence layers. content_differs is True when the
+    shadowed block's content differs from the served block's content.
+    """
     source_part = block_id.split("#", 1)[0]
     source_basename = Path(source_part).name
+
+    served_block: NormalizedBlock | None = None
+    served_layer: str | None = None
+    shadows: list[ShadowedBlock] = []
+
     for layer in layers.for_read():
         target = layer.normalized_dir / source_basename / f"{safe_filename(block_id)}.md"
-        if target.exists():
-            return parse_markdown(target.read_text()), layer.name
-    raise FileNotFoundError(f"block {block_id!r} not found in any layer")
+        if not target.exists():
+            continue
+        candidate = parse_markdown(target.read_text())
+        if served_block is None:
+            served_block = candidate
+            served_layer = layer.name
+        else:
+            content_differs = candidate.content != served_block.content
+            shadows.append(ShadowedBlock(layer=layer.name, content_differs=content_differs))
+
+    if served_block is None or served_layer is None:
+        raise FileNotFoundError(f"block {block_id!r} not found in any layer")
+
+    return BlockFetchResult(block=served_block, layer=served_layer, shadows=tuple(shadows))

@@ -32,7 +32,7 @@ Lint is a corpus-wide audit pass. Run it after a re-ingest, on a schedule, or be
    This returns `{"entry": {...}, "layer": "..."}`. From `.entry`, capture `topic`, `source_refs`, and `body`. Record the `.layer` of the entry — you'll need it for the report and cross-layer checks.
 
 3. **Per-entry checks:**
-   - For every `block_id` in `source_refs`, run `dks blocks get <block_id>`. If it returns a non-zero exit code or an error, record this as a **broken citation** (noting the entry's layer). If the block resolves successfully, note the `.layer` returned — if the entry's layer is `project` but the block's layer is `global`, record this as a **cross-layer citation** (informational).
+   - For every `block_id` in `source_refs`, run `dks blocks get <block_id>`. If it returns a non-zero exit code or an error, record this as a **broken citation** (noting the entry's layer). If the block resolves successfully, inspect the JSON result: note the `.layer` returned — if the entry's layer is `project` but the block's layer is `global`, record this as a **cross-layer citation** (informational). Also check `.shadows`: for any shadow entry where `content_differs` is true (or equivalently, if a `WARN:` line appears in the command output), record this as a **divergent shadow** (see report template below).
    - Extract every inline `[ref: <block_id>]` from the body. For each:
      - If the cited block_id is NOT in `source_refs`, record as **inline drift (cited but not in source_refs)** (noting the entry's layer).
    - For every `block_id` in `source_refs` that does NOT appear in any inline `[ref: ...]` in the body, record as **inline drift (in source_refs but not cited in body)** (noting the entry's layer).
@@ -54,6 +54,13 @@ Lint is a corpus-wide audit pass. Run it after a re-ingest, on a schedule, or be
    ### Cross-layer citations
    - (project) entry `<slug>`: cites `<id>` which resolves from the global layer (informational)
 
+   ### Divergent shadows
+   - (project) entry `<slug>`: block `<id>` served from project layer shadows a global block with
+     different content — the global version may represent a baseline rule the project is
+     intentionally overriding; verify that the project version is deliberate
+   - (global) entry `<slug>`: block `<id>` served from global layer shadows another lower layer
+     with different content
+
    ### Possible contradictions
    - (project) `<slug-a>` says "<claim>" [<id> @ project] but (global) `<slug-b>` says "<other>" [<id> @ global] — same topic area
 
@@ -62,6 +69,7 @@ Lint is a corpus-wide audit pass. Run it after a re-ingest, on a schedule, or be
    - X broken citations
    - Y drift issues
    - Z cross-layer citations
+   - V divergent shadows
    - W possible contradictions
    ```
 

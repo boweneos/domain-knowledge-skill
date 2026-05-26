@@ -6,7 +6,7 @@ When Claude Code (or any consumer agent) writes code that touches regulated logi
 
 ## Status
 
-**Shipped end-to-end. Current version: 0.2.1.** Four phases merged to `main` and tagged:
+**Shipped end-to-end. Current version: 0.2.2.** Four phases merged to `main` and tagged:
 
 | Tag | What |
 |---|---|
@@ -15,8 +15,9 @@ When Claude Code (or any consumer agent) writes code that touches regulated logi
 | `phase-3-complete` | Keyword search, consumer-facing `dks-search` skill, eval scaffolding. |
 | `phase-4-complete` | **Cascaded KB**: global `~/.dks/` + auto-discovered project `.dks/` layers. Project shadows global; writes default to project. v0.2.0 (breaking CLI flag rename). |
 | `v0.2.1` (patch) | Walker fix: auto-discovery no longer matches the global default location as a project layer when no closer `.dks/` exists. Surfaced by real end-to-end testing in a second repo. |
+| `v0.2.2` (minor) | **Divergence warning** on `dks blocks get` when a project block shadows a global block with different content (stderr WARN + `shadows` field in JSON). **`dks layers list`** introspection subcommand prints active layers with resolution source (explicit / env / auto-discover / default) for debugging. |
 
-95 tests passing, mypy strict + ruff clean. End-to-end smoke verified on the project's own design spec, on layer cascade behaviour, and on a real cross-repo install (global at `~/.dks/`, project at `<other-repo>/.dks/`).
+110 tests passing, mypy strict + ruff clean. End-to-end smoke verified on the project's own design spec, on layer cascade behaviour, and on a real cross-repo install (global at `~/.dks/`, project at `<other-repo>/.dks/`).
 
 ---
 
@@ -201,6 +202,7 @@ All deterministic operations. Skills invoke these; you can also run them directl
 
 | Command | Purpose |
 |---|---|
+| `dks layers list` | Print active layers with resolution source (env / auto-discover / explicit / default) and existence. Useful for debugging. |
 | `dks ingest <path> [--root DIR] [--write-global]` | Parse + normalize + write blocks. `--root` (default `raw/`) defines the relative `source_file` path. Writes to project layer by default; `--write-global` forces global. |
 | `dks blocks list <source_file>` | List `BlockHit`s across active layers: `[{"block_id", "layer"}, ...]` (deduped, project shadows global). |
 | `dks blocks get <block_id>` | Print `{"block": {...}, "layer": "..."}` from the first layer that has it. |
