@@ -15,6 +15,14 @@ Notes from the Phase 1 final review (sonnet, 2026-05-21). All five items are **n
 
 Items 1-3 closed in Phase 2; items 4-6 remain explicit open follow-ups (none blocking).
 
+## Findings from Phase 4 + real-world testing (2026-05-26)
+
+| # | Item | Status | Detail |
+|---|---|---|---|
+| 7 | Auto-discovery walker matched `~/.dks` (global default) as project | ✅ fixed in 0.2.1 | When a repo has no `.dks/` of its own and the user has the default global at `~/.dks/`, the walker used to climb past `$HOME` and treat the global location as the project layer — both layers resolved to the same dir, every read tagged `"project"`. Fix: `resolve_layers` now resolves global first and passes it as a `skip` to `_auto_discover_project`. Two regression tests in `tests/test_layers.py`. |
+| 8 | Content-divergence warning when project shadows global | ⚠ open | Mentioned in the Phase 4 plan's "What's left" section. When project and global both have a block at the same `block_id` with different content, `dks blocks get` should emit a stderr `WARN: shadows global block with different content` (currently silent). |
+| 9 | `dks layers list` introspection subcommand | ⚠ open | Useful for debugging which layers are active and where they resolved from. Print `{name, base, env_var_used, auto_discovered: bool}` per active layer. |
+
 ## 1. `source_file` scoping (collision risk)
 
 `cli.ingest` currently passes `path.name` (basename) as `source_file`. Two files with the same name in different directories produce colliding `block_id`s and colliding output filenames.

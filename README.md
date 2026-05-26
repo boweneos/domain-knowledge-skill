@@ -6,7 +6,7 @@ When Claude Code (or any consumer agent) writes code that touches regulated logi
 
 ## Status
 
-**Shipped end-to-end. Current version: 0.2.0.** Four phases merged to `main` and tagged:
+**Shipped end-to-end. Current version: 0.2.1.** Four phases merged to `main` and tagged:
 
 | Tag | What |
 |---|---|
@@ -14,18 +14,20 @@ When Claude Code (or any consumer agent) writes code that touches regulated logi
 | `phase-2-complete` | Excel / DOCX / PDF parsers, block + PageIndex + wiki storage, three LLM-orchestration skills. |
 | `phase-3-complete` | Keyword search, consumer-facing `dks-search` skill, eval scaffolding. |
 | `phase-4-complete` | **Cascaded KB**: global `~/.dks/` + auto-discovered project `.dks/` layers. Project shadows global; writes default to project. v0.2.0 (breaking CLI flag rename). |
+| `v0.2.1` (patch) | Walker fix: auto-discovery no longer matches the global default location as a project layer when no closer `.dks/` exists. Surfaced by real end-to-end testing in a second repo. |
 
-93 tests passing, mypy strict + ruff clean. End-to-end smoke verified on the project's own design spec and on layer cascade behaviour.
+95 tests passing, mypy strict + ruff clean. End-to-end smoke verified on the project's own design spec, on layer cascade behaviour, and on a real cross-repo install (global at `~/.dks/`, project at `<other-repo>/.dks/`).
 
 ---
 
 ## Quick start (5 minutes)
 
 ```bash
-# 1. Clone the repo and install the Python package
+# 1. Clone the repo and install the Python CLI globally
 git clone git@github.com:boweneos/domain-knowledge-skill.git
 cd domain-knowledge-skill
-uv sync --all-groups
+uv tool install --editable .   # puts `dks` on ~/.local/bin/dks, reflects live source edits
+#   (Or `uv sync --all-groups` if you'd rather invoke via `uv run dks ...`)
 ```
 
 ```text
