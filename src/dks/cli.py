@@ -111,6 +111,18 @@ def ingest(
             "Requires the 'redact' extra."
         ),
     ),
+    redact_entities: str | None = typer.Option(  # noqa: B008
+        None,
+        "--redact-entities",
+        help=(
+            "Comma-separated Presidio entity types to redact (e.g. PERSON,EMAIL_ADDRESS,AU_TFN), "
+            "OR 'all' for full Presidio coverage (pre-0.3.5 behavior). "
+            "Default when --redact-pii is set: PERSON,EMAIL_ADDRESS,PHONE_NUMBER,"
+            "AU_TFN,AU_MEDICARE,AU_ABN,CREDIT_CARD,IBAN_CODE. "
+            "Tip: pass 'all' to re-enable DATE_TIME / LOCATION / US_DRIVER_LICENSE "
+            "if your corpus contains real PII of those types."
+        ),
+    ),
 ) -> None:
     """Parse, normalize, and persist a source document into the active write layer."""
     _reject_sensitive_global_write(classification, write_global)
@@ -145,13 +157,31 @@ def ingest(
             err=True,
         )
 
-    # Redaction (v0.3.2): lazy import Presidio; surface ImportError as exit-2
+    # Redaction (v0.3.2+): lazy import Presidio; surface ImportError as exit-2.
+    # v0.3.5: tuned default entity list; --redact-entities flag for overrides.
     if redact_pii:
         try:
             from dks.redact import redact_text
-            items = [
-                item.model_copy(update={"content": redact_text(item.content)}) for item in items
-            ]
+            if redact_entities == "all":
+                # Revert to Presidio's full all-entities coverage (pre-0.3.5 behavior)
+                items = [
+                    item.model_copy(update={"content": redact_text(item.content, use_all=True)})
+                    for item in items
+                ]
+            elif redact_entities:
+                # Explicit comma-separated entity list
+                entity_list = [e.strip() for e in redact_entities.split(",") if e.strip()]
+                items = [
+                    item.model_copy(
+                        update={"content": redact_text(item.content, entities=entity_list)}
+                    )
+                    for item in items
+                ]
+            else:
+                # Default: use tuned DEFAULT_REDACT_ENTITIES
+                items = [
+                    item.model_copy(update={"content": redact_text(item.content)}) for item in items
+                ]
         except ImportError as e:
             typer.echo(f"error: {e}", err=True)
             raise typer.Exit(code=2) from e

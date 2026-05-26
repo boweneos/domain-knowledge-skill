@@ -666,6 +666,60 @@ def test_ingest_redact_pii_without_presidio_errors(tmp_path, monkeypatch):
 
 @pytest.mark.skipif(
     not _presidio_installed(),
+    reason="presidio not installed; --redact-entities flag skipped",
+)
+def test_ingest_redact_entities_all_includes_date_time(tmp_path):
+    project = tmp_path / "proj"
+    project.mkdir()
+    src = tmp_path / "raw" / "doc.md"
+    src.parent.mkdir()
+    src.write_text("Customer with DOB 1985-03-14")
+    res = _invoke(
+        ["--project", str(project), "--no-global",
+         "ingest", str(src), "--root", str(src.parent),
+         "--redact-pii", "--redact-entities", "all"],
+    )
+    assert res.exit_code == 0, res.output
+    get_res = _invoke(
+        ["--project", str(project), "--no-global",
+         "blocks", "get", "doc.md#L1-1"],
+    )
+    payload = json.loads(get_res.output[get_res.output.find("{"):])
+    # With --redact-entities all, the DATE_TIME-shaped string IS redacted
+    assert "1985-03-14" not in payload["block"]["content"]
+    assert "[REDACTED:" in payload["block"]["content"]
+
+
+@pytest.mark.skipif(
+    not _presidio_installed(),
+    reason="presidio not installed; --redact-entities flag skipped",
+)
+def test_ingest_redact_default_leaves_dates_alone(tmp_path):
+    project = tmp_path / "proj"
+    project.mkdir()
+    src = tmp_path / "raw" / "policy.md"
+    src.parent.mkdir()
+    src.write_text("Waiting period is 12 months and DOB is 1985-03-14.")
+    res = _invoke(
+        ["--project", str(project), "--no-global",
+         "ingest", str(src), "--root", str(src.parent),
+         "--redact-pii"],
+    )
+    assert res.exit_code == 0, res.output
+    get_res = _invoke(
+        ["--project", str(project), "--no-global",
+         "blocks", "get", "policy.md#L1-1"],
+    )
+    payload = json.loads(get_res.output[get_res.output.find("{"):])
+    content = payload["block"]["content"]
+    # With default tuned list, "12 months" stays (no DATE_TIME redaction)
+    assert "12 months" in content
+    # 1985-03-14 also stays (DATE_TIME not in default)
+    assert "1985-03-14" in content
+
+
+@pytest.mark.skipif(
+    not _presidio_installed(),
     reason="presidio not installed; --redact-pii path skipped",
 )
 def test_ingest_with_redact_pii_writes_redacted_blocks(tmp_path):
