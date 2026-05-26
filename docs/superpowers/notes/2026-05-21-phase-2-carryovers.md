@@ -20,8 +20,8 @@ Items 1-3 closed in Phase 2; items 4-6 remain explicit open follow-ups (none blo
 | # | Item | Status | Detail |
 |---|---|---|---|
 | 7 | Auto-discovery walker matched `~/.dks` (global default) as project | ✅ fixed in 0.2.1 | When a repo has no `.dks/` of its own and the user has the default global at `~/.dks/`, the walker used to climb past `$HOME` and treat the global location as the project layer — both layers resolved to the same dir, every read tagged `"project"`. Fix: `resolve_layers` now resolves global first and passes it as a `skip` to `_auto_discover_project`. Two regression tests in `tests/test_layers.py`. |
-| 8 | Content-divergence warning when project shadows global | ⚠ open | Mentioned in the Phase 4 plan's "What's left" section. When project and global both have a block at the same `block_id` with different content, `dks blocks get` should emit a stderr `WARN: shadows global block with different content` (currently silent). |
-| 9 | `dks layers list` introspection subcommand | ⚠ open | Useful for debugging which layers are active and where they resolved from. Print `{name, base, env_var_used, auto_discovered: bool}` per active layer. |
+| 8 | Content-divergence warning when project shadows global | ✅ fixed in 0.2.2 | `get_block` now returns `BlockFetchResult(block, layer, shadows)`. CLI emits stderr `WARN: block <id> in layer <high> shadows <low> with different content`. JSON output gains a `shadows` field. Identical-content shadows are recorded but don't warn. Lint skill's report template gains a "Divergent shadows" section. |
+| 9 | `dks layers list` introspection subcommand | ✅ fixed in 0.2.2 | New CLI subcommand prints active layers as JSON: `{name, base, source, exists}` per layer. `source` is one of `explicit`, `env`, `auto-discover`, or `default`. Backed by a new `resolution: dict[str, str]` field on `KbLayers` populated by `resolve_layers`. Plus `/dks:layers` slash command. |
 
 ## 1. `source_file` scoping (collision risk)
 
