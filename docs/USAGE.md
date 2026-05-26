@@ -14,15 +14,33 @@ The session is annotated so you can map each step to either the **deterministic 
 
 ### Half 1 — Python package
 
+Pick one of two install patterns:
+
+#### A. `uv tool install` (recommended — `dks` on global PATH)
+
+```bash
+git clone git@github.com:boweneos/domain-knowledge-skill.git
+cd domain-knowledge-skill
+uv tool install --editable .
+which dks                                # → ~/.local/bin/dks
+dks --help                                # smoke check
+```
+
+Editable install means the binary follows your dev clone — `git pull` and edits to source flow through automatically. This is the install pattern used when the plugin's skills need to invoke `dks` from any working directory (including other repos).
+
+To uninstall later: `uv tool uninstall dks`.
+
+#### B. `uv sync` (in-project venv, invoke via `uv run`)
+
 ```bash
 git clone git@github.com:boweneos/domain-knowledge-skill.git
 cd domain-knowledge-skill
 uv sync --all-groups
-uv run dks --help     # smoke check
-uv run pytest         # full suite — 93 passing expected
+uv run dks --help                         # smoke check
+uv run pytest                             # full suite — 95 passing expected
 ```
 
-The CLI is then runnable as `uv run dks ...` from the project root, or you can `uv pip install -e .` into a venv on your PATH if you want a global `dks` binary.
+The CLI is invokable as `uv run dks ...` from inside this clone only. Useful for dev work on `dks` itself; skills running from other repos won't find `dks` on PATH.
 
 ### Half 2 — Claude Code plugin
 
@@ -194,6 +212,8 @@ Layer tags help reviewers see at a glance whether a fact is a company-wide rule 
 ### Auto-discovery
 
 When no `--project` flag or `DKS_PROJECT` env var is set, the CLI walks up from the current working directory looking for a `.dks/` directory. The first match becomes the project layer. If we hit the filesystem root with no match, there's no project layer and only global is active. This mirrors how `git` finds `.git/` and how `npm` walks up for `node_modules/`.
+
+**One subtlety (fixed in 0.2.1):** the walker explicitly skips the global layer's resolved location. Without this, running `dks` from anywhere under `$HOME` would find `~/.dks` (the default global) and treat it as the project layer, causing both layers to resolve to the same directory. After 0.2.1, the walker silently passes over the global location and continues climbing — returning `None` (project-less, global-only mode) if nothing closer exists.
 
 ### Suppressing the global layer
 
