@@ -20,11 +20,20 @@ from typing import Any
 
 
 def _missing_dep_message() -> str:
+    model_url = (
+        "https://github.com/explosion/spacy-models/releases/download/"
+        "en_core_web_lg-3.8.0/en_core_web_lg-3.8.0.tar.gz"
+    )
     return (
-        "presidio is not installed. To enable --redact-pii:\n"
-        "  uv tool install --with presidio-analyzer --with presidio-anonymizer dks\n"
-        "  python -m spacy download en_core_web_lg\n"
-        "Then re-run with --redact-pii."
+        "presidio or its spaCy model is not installed. To enable --redact-pii:\n"
+        "  uv tool install --reinstall \\\n"
+        "    --with presidio-analyzer --with presidio-anonymizer \\\n"
+        f'    --with "en-core-web-lg @ {model_url}" \\\n'
+        "    dks\n"
+        "(--reinstall is needed if dks is already installed without these extras.\n"
+        "The spaCy model wheel URL must match the spacy version pinned in dks's deps;\n"
+        "today that is 3.8.x. python -m spacy download does NOT work inside a uv tool\n"
+        "venv because pip isn't available there.)"
     )
 
 
@@ -44,7 +53,7 @@ def _get_anonymizer() -> Any:
         from presidio_anonymizer import AnonymizerEngine
     except ImportError as e:
         raise ImportError(_missing_dep_message()) from e
-    return AnonymizerEngine()  # type: ignore[no-untyped-call]
+    return AnonymizerEngine()
 
 
 def redact_text(text: str, *, entities: list[str] | None = None) -> str:

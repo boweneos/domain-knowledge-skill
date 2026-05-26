@@ -1,6 +1,6 @@
 [project]
 name = "dks"
-version = "0.3.2"
+version = "0.3.3"
 description = "Domain knowledge skill — citation-grounded RAG for life-insurance code agents"
 requires-python = ">=3.12"
 dependencies = [
@@ -54,3 +54,13 @@ select = ["E", "F", "I", "B", "UP", "SIM"]
 strict = true
 python_version = "3.12"
 mypy_path = "src"
+
+# Optional [redact] extras — only installed when the user opts in to PII redaction.
+# Lazy-imported via dks.redact; missing stubs are expected in the default install.
+[[tool.mypy.overrides]]
+module = [
+    "presidio_analyzer",
+    "presidio_anonymizer",
+    "presidio_anonymizer.entities",
+]
+ignore_missing_imports = true

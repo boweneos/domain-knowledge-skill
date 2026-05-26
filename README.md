@@ -6,7 +6,7 @@ When Claude Code (or any consumer agent) writes code that touches regulated logi
 
 ## Status
 
-**Shipped end-to-end. Current version: 0.3.2.** Four phases merged to `main` and tagged:
+**Shipped end-to-end. Current version: 0.3.3.** Four phases merged to `main` and tagged:
 
 | Tag | What |
 |---|---|
@@ -20,8 +20,9 @@ When Claude Code (or any consumer agent) writes code that touches regulated logi
 | `v0.3.0` (minor) | **Source classification & PII guardrails.** Opt-in `--classification` flag on `dks ingest` / `dks wiki write` (levels: public / internal / confidential / restricted). Confidential and restricted content rejected from global-write; `dks blocks get` emits stderr WARN; consumer skill paraphrases or points-only. Wiki entries propagate classification; lint flags leaks. Default behaviour unchanged. |
 | `v0.3.1` (patch) | **PII pattern scan**: new `dks scan <path>` subcommand reports regex-based PII findings (TFN, Medicare, ABN, email, AU phone, DOB-shaped dates). `dks ingest` auto-scans and emits a stderr WARN if patterns found — operator still picks `--classification`. Advisory only; never auto-decides classification. |
 | `v0.3.2` (minor) | **Optional Presidio redaction**: `dks ingest --redact-pii` replaces detected PII (PERSON, EMAIL_ADDRESS, PHONE_NUMBER, AU_TFN, ...) with `[REDACTED:<TYPE>]` markers in block content. Requires the `redact` extra (`presidio-analyzer + presidio-anonymizer + spaCy`). `NormalizedBlock` gains a `redacted: bool` field. Without the flag, ingest behaviour is unchanged. |
+| `v0.3.3` (patch) | Walker corner case + install hint fixes from real-world mass-ingest. `--no-global` no longer makes auto-discovery match `~/.dks` as project (skip is always applied, even when global is suppressed). `[redact]` install hint corrected: `uv tool install --reinstall ... --with "en-core-web-lg @ <wheel-url>"` instead of broken `python -m spacy download` (which doesn't work in a uv tool venv). |
 
-165 tests passing, mypy strict + ruff clean. End-to-end smoke verified on the project's own design spec, on layer cascade behaviour, on a real cross-repo install (global at `~/.dks/`, project at `<other-repo>/.dks/`), and on classification guardrails (global-write rejection + `dks blocks get` WARN for confidential blocks).
+**Current version: 0.3.3.** 166 tests passing, mypy strict + ruff clean. Beyond unit tests: end-to-end smoke verified on the project's own design spec, layer cascade behaviour, a real cross-repo install (global at `~/.dks/`, project at `<other-repo>/.dks/`), classification guardrails (global-write rejection + `dks blocks get` WARN), AND a real mass-ingest of 43 Encompass underwriting docs into `~/.dks/` with Presidio redaction (~1545 blocks, 3.5 min).
 
 ---
 

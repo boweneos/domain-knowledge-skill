@@ -99,26 +99,27 @@ def resolve_layers(
     if cwd is None:
         cwd = Path.cwd()
 
-    # Resolve the global base FIRST so it can be passed as `skip` to auto-discovery,
-    # avoiding the case where the walker climbs to the user's home dir and matches
-    # the global layer's own location as a project layer.
-    resolved_global_base: Path | None
-    global_source: str | None = None
-    if include_global:
-        if global_base is None:
-            env_global = os.environ.get("DKS_GLOBAL")
-            if env_global:
-                resolved_global_base = Path(env_global)
-                global_source = "env"
-            else:
-                resolved_global_base = Path.home() / ".dks"
-                global_source = "default"
-        else:
-            resolved_global_base = global_base
-            global_source = "explicit"
+    # Always resolve where the global layer WOULD live, even when include_global
+    # is False. The resolved path is needed as the walker's `skip` so auto-discovery
+    # doesn't climb to the user's home dir and silently match the global location
+    # as a project layer. Whether we then expose that layer is independent.
+    if global_base is not None:
+        resolved_global_base: Path = global_base
+        explicit_global = True
     else:
-        resolved_global_base = None
+        env_global = os.environ.get("DKS_GLOBAL")
+        resolved_global_base = Path(env_global) if env_global else Path.home() / ".dks"
+        explicit_global = False
+
+    global_source: str | None
+    if not include_global:
         global_source = "suppressed"
+    elif explicit_global:
+        global_source = "explicit"
+    elif os.environ.get("DKS_GLOBAL"):
+        global_source = "env"
+    else:
+        global_source = "default"
 
     project_source: str | None = None
     if project is None:
@@ -136,9 +137,7 @@ def resolve_layers(
     project_layer = KbLayer(name="project", base=project) if project is not None else None
 
     global_layer: KbLayer | None = (
-        KbLayer(name="global", base=resolved_global_base)
-        if resolved_global_base is not None
-        else None
+        KbLayer(name="global", base=resolved_global_base) if include_global else None
     )
 
     resolution: dict[str, str] = {}
