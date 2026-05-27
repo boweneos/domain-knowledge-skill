@@ -19,7 +19,7 @@ from dks.parsers import get_parser
 from dks.scan import scan_text
 from dks.search import search_wiki
 from dks.store.blocks import BlockFetchResult, get_block, list_blocks
-from dks.store.pageindex import read_pageindex, write_pageindex
+from dks.store.pageindex import read_pageindex, search_pageindex, write_pageindex
 from dks.store.wiki import WikiEntry, list_wiki_entries, read_wiki_entry, write_wiki_entry
 from dks.types import Classification, classification_rank
 from dks.writer import write_blocks
@@ -333,6 +333,19 @@ def pageindex_read(ctx: typer.Context, source_file: str = typer.Argument(...)) -
         typer.echo(f"error: {e}", err=True)
         raise typer.Exit(code=2) from e
     typer.echo(json.dumps({"tree": tree, "layer": layer_name}, indent=2))
+
+
+@pageindex_app.command("search")
+def pageindex_search(ctx: typer.Context, query: str = typer.Argument(...)) -> None:  # noqa: B008
+    """Find pageindex tree nodes whose title contains `query` (case-insensitive).
+
+    Walks every <source>.pageindex.json in active layers' index dirs. Prints a
+    JSON array of {source, layer, title, path, block_ids}. Project hits appear
+    before global hits.
+    """
+    layers = _layers(ctx)
+    hits = search_pageindex(layers, query)
+    typer.echo(json.dumps([h.model_dump() for h in hits], indent=2))
 
 
 # --- wiki -----------------------------------------------------------------

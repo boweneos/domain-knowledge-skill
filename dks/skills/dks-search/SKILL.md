@@ -114,44 +114,52 @@ Do not search blindly across all interpretations — that pollutes the result se
 
 If `dks wiki search` returns an empty list, **do not stop there.** Before abstaining, check whether the ingested corpus contains a source that LOOKS like it covers the topic but hasn't been compiled into a wiki entry yet. Many cases of "no wiki hit" turn out to be "wiki entry not yet compiled from an obviously-relevant source."
 
-**Auto-suggest procedure** (since v0.3.7):
+**Auto-suggest procedure** (since v0.3.7; pageindex branch added v0.3.9):
 
 1. **Extract keyword(s) from the query.** Strip stopwords; keep the substantive nouns. E.g. `"what's our rule for sleep apnoea underwriting"` → `sleep apnoea`.
 
-2. **Look for candidate sources by filename match.** Use the active layer's `normalized/` directory (which is where every ingested source lives, one subdirectory per source). Several ways:
+2. **Look for candidate sources — two signals, run BOTH.**
+
+   **(a) Filename match.** Walk active layers' `normalized/` dirs:
    ```bash
-   # Lightweight — list source names in each active layer
-   ls "$(dks layers list | python3 -c 'import sys,json; print(json.load(sys.stdin)[-1][\"base\"])')/normalized/" 2>/dev/null
-   # Or grep by keyword (case-insensitive):
-   ls ~/.dks/normalized/ 2>/dev/null | grep -i "sleep" 2>/dev/null
+   ls ~/.dks/normalized/ 2>/dev/null | grep -i "sleep apnoea"
    ```
-   If a project layer is also active, repeat for `$(dks layers list | python3 ... project base)/normalized/`.
+   If a project layer is active, repeat for its `normalized/` dir.
 
-3. **If exactly one source matches**, propose compiling from it:
+   **(b) PageIndex tree-title match (new in v0.3.9).** Run:
+   ```bash
+   dks pageindex search "sleep apnoea"
    ```
-   The KB has no wiki entry for "<query>", but I found a source in the
-   ingested corpus that looks relevant: "<source_filename>" (in <layer>).
+   This returns a JSON array of `{source, layer, title, path, block_ids}` hits — sources where a section title in the pageindex tree matches the keyword, even when the filename doesn't. This catches cases like "the file is called `Encompass-UW-Manual.docx` but section 3.4 is titled `Sleep Apnoea Management`."
+
+   Combine candidates from BOTH signals. PageIndex hits are more precise because they also tell you the matching subtree and its `block_ids` — surface that when proposing a compile.
+
+3. **If exactly one source matches** (whether by filename, pageindex tree-title, or both):
+   ```
+   The KB has no wiki entry for "<query>", but I found a relevant source:
+     - "<source_filename>" (in <layer>)
+       [via: filename match | pageindex section "<title>" with N candidate blocks]
    Want me to compile a wiki entry from it (using dks-compile-wiki) so I
-   can ground the answer? Or would you rather I proceed un-grounded with
-   "assumed, not cited" markers on the rules I rely on?
+   can ground the answer? Or proceed un-grounded with "assumed, not cited"
+   markers on the rules I rely on?
    ```
 
-4. **If multiple sources match**, list them all and ask which:
+4. **If multiple sources match**, list them all with the signal that surfaced each:
    ```
-   The KB has no wiki entry for "<query>", but I found N sources in the
-   ingested corpus whose filenames suggest they cover the topic:
-     - <source 1> (<layer>)
-     - <source 2> (<layer>)
-     - <source 3> (<layer>)
+   The KB has no wiki entry for "<query>", but I found N sources that look
+   relevant:
+     - <source 1> (<layer>) — filename match
+     - <source 2> (<layer>) — pageindex section "<title>" (N candidate blocks)
+     - <source 3> (<layer>) — both
    Which should I compile from? (Or "all" / "none" / "skip and proceed
    un-grounded".)
    ```
 
-5. **If NO sources match by filename**, fall back to the classic abstention message:
+5. **If NO sources match on either signal**, fall back to the classic abstention message:
    ```
    The KB does not contain a citation for "<query>", and I couldn't find
-   a source in the ingested corpus that obviously covers it. Possible
-   next steps:
+   a source in the ingested corpus that obviously covers it (no filename
+   match and no pageindex tree-title match). Possible next steps:
    - Ingest a new source document covering this topic (dks ingest), then
      compile a wiki entry (dks-compile-wiki).
    - Proceed without grounding, but I'll flag any rule I rely on as
@@ -161,6 +169,8 @@ If `dks wiki search` returns an empty list, **do not stop there.** Before abstai
    ```
 
 **Do NOT auto-invoke `dks-compile-wiki` without user approval.** The compile is opt-in even when the candidate source is obvious — it's an LLM-heavy operation that creates citable content the rest of the system will treat as authoritative, so the operator-in-the-loop trust gate stays.
+
+**Note on `dks pageindex search` returning empty:** if no pageindex.json files have been built yet (the v0.3.8 ingest hint suggests when to build them), the pageindex branch returns `[]` and falls through harmlessly. Filename matching alone still operates. No special-casing required.
 
 ### Partial corpus — search hit but block fetch fails
 

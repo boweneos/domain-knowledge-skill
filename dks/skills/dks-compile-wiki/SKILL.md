@@ -27,7 +27,31 @@ The user names:
 
 ## Procedure
 
-1. **Gather blocks.** For each source_file, run `dks blocks list <source>`. This returns a JSON array of `{"block_id": "...", "layer": "..."}` objects (not a flat list of strings) — extract the `block_id` values and note their layers. For each `block_id` (whether from the user or from the list), run `dks blocks get <block_id>`. This returns `{"block": {...}, "layer": "...", "shadows": [...]}` — use `.block` for the block content and note `.layer` for citation tagging. The `.shadows` field lists any lower-precedence blocks at the same `block_id` as `{"layer": "...", "content_differs": bool}`; if `content_differs` is true (or a `WARN:` line appears in the output), note the divergence explicitly when authoring the article.
+### Phase 0 — Narrow with pageindex (optional, since v0.3.9)
+
+For each `source_file` the user named, **before** enumerating all blocks, check whether a pageindex tree is available for it. The tree lets you jump straight to the relevant subtree instead of reading every block of a long source.
+
+```bash
+dks pageindex search "<keyword from topic>"
+```
+
+This returns a JSON array of `{source, layer, title, path, block_ids}` hits across all pageindex-built sources whose node titles match. If hits include `source_file`s you're compiling from, take the union of those nodes' `block_ids` as your starting set — those are the blocks most likely to support the article.
+
+If `dks pageindex search` returns nothing relevant, OR if the named sources have no pageindex (the search returns no hits for that source), fall through to Phase 1's full block listing. **Pageindex is an accelerator, not a gate** — its absence never blocks a compile.
+
+Quick check whether a pageindex exists for a specific source:
+```bash
+dks pageindex read "<source_file>" 2>/dev/null && echo "pageindex available" || echo "no pageindex — full block listing"
+```
+
+**When to skip Phase 0:**
+- The source is short (< ~30 blocks) — listing is cheap; pageindex adds nothing.
+- The topic spans the whole source — narrowing to a subtree would drop relevant content.
+- The user has explicitly named `block_ids` — go straight to Phase 1 with those.
+
+### Phase 1 — Gather blocks
+
+1. **Gather blocks.** For each source_file, run `dks blocks list <source>` (skip this if Phase 0 already gave you a narrower `block_id` set). This returns a JSON array of `{"block_id": "...", "layer": "..."}` objects (not a flat list of strings) — extract the `block_id` values and note their layers. For each `block_id` (whether from the user, from Phase 0, or from the list), run `dks blocks get <block_id>`. This returns `{"block": {...}, "layer": "...", "shadows": [...]}` — use `.block` for the block content and note `.layer` for citation tagging. The `.shadows` field lists any lower-precedence blocks at the same `block_id` as `{"layer": "...", "content_differs": bool}`; if `content_differs` is true (or a `WARN:` line appears in the output), note the divergence explicitly when authoring the article.
 
 2. **Compose the article.** Write a Markdown article on the topic. Rules:
    - Every factual statement must end with an inline citation: `[ref: <block_id>]`.
