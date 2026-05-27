@@ -12,6 +12,7 @@ from typing import Any
 
 import typer
 
+from dks.hints import pageindex_hint
 from dks.layers import KbLayer, KbLayers, resolve_layers
 from dks.normalizer import normalize
 from dks.parsers import get_parser
@@ -191,6 +192,9 @@ def ingest(
         blocks = [b.model_copy(update={"redacted": True}) for b in blocks]
     written = write_blocks(blocks, write_layer)
     typer.echo(f"wrote {len(written)} blocks to {write_layer.normalized_dir}/{source_file}/")
+
+    if hint := pageindex_hint(write_layer, source_file, blocks):
+        typer.echo(hint, err=True)
 
 
 # --- scan -----------------------------------------------------------------
