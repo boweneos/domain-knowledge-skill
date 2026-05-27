@@ -1,7 +1,12 @@
 from pathlib import Path
 
 from dks.block import NormalizedBlock
-from dks.hints import pageindex_hint, wiki_stale_hint
+from dks.hints import (
+    _strip_version_suffix,
+    pageindex_hint,
+    supersedes_candidate_hint,
+    wiki_stale_hint,
+)
 from dks.layers import KbLayer, KbLayers
 from dks.locators import DocxLocator, MarkdownLocator, PdfLocator
 from dks.store.wiki import WikiEntry, write_wiki_entry
@@ -169,3 +174,132 @@ def test_wiki_stale_hint_exact_source_match_not_prefix_collision(tmp_path):
     layers = KbLayers(project=proj, global_layer=None)
     write_wiki_entry(proj, _make_entry("entry", ["cancer-long.docx#§body#p1"]))
     assert wiki_stale_hint(layers, "cancer.docx") is None
+
+
+# --- _strip_version_suffix ------------------------------------------------
+
+
+def test_strip_version_suffix_handles_v_pattern():
+    assert _strip_version_suffix("Futura - Mental Health v2") == "futura - mental health"
+    assert _strip_version_suffix("policy_v10") == "policy"
+
+
+def test_strip_version_suffix_handles_year_pattern():
+    assert _strip_version_suffix("Encompass - Cannabis 2025") == "encompass - cannabis"
+    assert _strip_version_suffix("rules-2026") == "rules"
+
+
+def test_strip_version_suffix_handles_amendment_pattern():
+    assert _strip_version_suffix("Mental Health Amendment 2026") == "mental health"
+    assert _strip_version_suffix("rules - amendment") == "rules"
+
+
+def test_strip_version_suffix_handles_disambiguator_pattern():
+    assert _strip_version_suffix("Notes (1)") == "notes"
+    assert _strip_version_suffix("file (3)") == "file"
+
+
+def test_strip_version_suffix_chains_multiple_suffixes():
+    assert _strip_version_suffix("policy v2 2026") == "policy"
+    assert _strip_version_suffix("rules-amendment-v3") == "rules"
+
+
+def test_strip_version_suffix_returns_empty_for_pure_suffix():
+    assert _strip_version_suffix("v2") == ""
+    assert _strip_version_suffix("2026") == ""
+
+
+def test_strip_version_suffix_leaves_distinct_names_alone():
+    assert _strip_version_suffix("encompass-mental-health") == "encompass-mental-health"
+    assert _strip_version_suffix("Cannabis Use") == "cannabis use"
+
+
+# --- supersedes_candidate_hint --------------------------------------------
+
+
+def _make_source_dir(layer: KbLayer, name: str) -> None:
+    (layer.normalized_dir / name).mkdir(parents=True, exist_ok=True)
+
+
+def test_supersedes_hint_none_when_no_other_sources(tmp_path):
+    proj = KbLayer(name="project", base=tmp_path / "p")
+    proj.normalized_dir.mkdir(parents=True)
+    layers = KbLayers(project=proj, global_layer=None)
+    assert supersedes_candidate_hint(layers, "new.docx") is None
+
+
+def test_supersedes_hint_fires_on_version_suffix_match(tmp_path):
+    proj = KbLayer(name="project", base=tmp_path / "p")
+    proj.normalized_dir.mkdir(parents=True)
+    layers = KbLayers(project=proj, global_layer=None)
+    _make_source_dir(proj, "Futura - Mental Health.docx")
+    hint = supersedes_candidate_hint(layers, "Futura - Mental Health v2.docx")
+    assert hint is not None
+    assert "Futura - Mental Health.docx" in hint
+    assert "@ project" in hint
+    assert "--supersedes" in hint
+
+
+def test_supersedes_hint_fires_on_year_suffix_match(tmp_path):
+    proj = KbLayer(name="project", base=tmp_path / "p")
+    proj.normalized_dir.mkdir(parents=True)
+    layers = KbLayers(project=proj, global_layer=None)
+    _make_source_dir(proj, "Encompass - Cannabis Use.pdf")
+    hint = supersedes_candidate_hint(layers, "Encompass - Cannabis Use 2026.pdf")
+    assert hint is not None
+    assert "Encompass - Cannabis Use.pdf" in hint
+
+
+def test_supersedes_hint_excludes_self(tmp_path):
+    proj = KbLayer(name="project", base=tmp_path / "p")
+    proj.normalized_dir.mkdir(parents=True)
+    layers = KbLayers(project=proj, global_layer=None)
+    _make_source_dir(proj, "same.docx")
+    # Comparing a source to itself should not trip the hint
+    assert supersedes_candidate_hint(layers, "same.docx") is None
+
+
+def test_supersedes_hint_skips_unrelated_names(tmp_path):
+    proj = KbLayer(name="project", base=tmp_path / "p")
+    proj.normalized_dir.mkdir(parents=True)
+    layers = KbLayers(project=proj, global_layer=None)
+    _make_source_dir(proj, "Encompass - Mental Health.docx")
+    # Different product line — should NOT be flagged
+    assert supersedes_candidate_hint(layers, "Futura - Cancer.docx") is None
+
+
+def test_supersedes_hint_lists_candidates_across_layers(tmp_path):
+    proj = KbLayer(name="project", base=tmp_path / "p")
+    glb = KbLayer(name="global", base=tmp_path / "g")
+    proj.normalized_dir.mkdir(parents=True)
+    glb.normalized_dir.mkdir(parents=True)
+    layers = KbLayers(project=proj, global_layer=glb)
+    _make_source_dir(proj, "rules.docx")
+    _make_source_dir(glb, "rules-2024.docx")
+    hint = supersedes_candidate_hint(layers, "rules-v3.docx")
+    assert hint is not None
+    # Both layers' candidates should appear
+    assert "rules.docx @ project" in hint
+    assert "rules-2024.docx @ global" in hint
+
+
+def test_supersedes_hint_respects_env_threshold_override(tmp_path, monkeypatch):
+    proj = KbLayer(name="project", base=tmp_path / "p")
+    proj.normalized_dir.mkdir(parents=True)
+    layers = KbLayers(project=proj, global_layer=None)
+    _make_source_dir(proj, "Cannabis.pdf")
+    # By default, these would not match (low similarity); with threshold 0.3 they would
+    monkeypatch.setenv("DKS_SUPERSEDES_SIMILARITY_THRESHOLD", "0.30")
+    hint = supersedes_candidate_hint(layers, "Cancer.pdf")
+    assert hint is not None
+
+
+def test_supersedes_hint_high_threshold_suppresses_borderline_matches(tmp_path, monkeypatch):
+    proj = KbLayer(name="project", base=tmp_path / "p")
+    proj.normalized_dir.mkdir(parents=True)
+    layers = KbLayers(project=proj, global_layer=None)
+    _make_source_dir(proj, "Futura - Mental Health Notes.docx")
+    monkeypatch.setenv("DKS_SUPERSEDES_SIMILARITY_THRESHOLD", "0.99")
+    # Even a v2 of nearly the same name shouldn't trip at 0.99 (post-strip names diverge)
+    hint = supersedes_candidate_hint(layers, "Futura - Mental Health v2.docx")
+    assert hint is None

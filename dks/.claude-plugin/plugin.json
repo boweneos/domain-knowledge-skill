@@ -1,6 +1,6 @@
 {
   "name": "dks",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Citation-grounded knowledge skill for AI coding agents in regulated life-insurance contexts. Ingests domain docs (PDF/DOCX/PPTX/Excel/Markdown), compiles citation-preserving wiki articles, and grounds consumer code with structurally-enforced citation discipline. Ships four skills (search/build-pageindex/compile-wiki/lint-wiki) and a Python CLI.",
   "author": {
     "name": "Bowen Li",

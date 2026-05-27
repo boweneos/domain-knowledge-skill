@@ -12,7 +12,7 @@ from typing import Any
 
 import typer
 
-from dks.hints import pageindex_hint, wiki_stale_hint
+from dks.hints import pageindex_hint, supersedes_candidate_hint, wiki_stale_hint
 from dks.layers import KbLayer, KbLayers, resolve_layers
 from dks.normalizer import normalize
 from dks.parsers import get_parser
@@ -218,6 +218,10 @@ def ingest(
 
     if stale := wiki_stale_hint(layers, source_file):
         typer.echo(stale, err=True)
+
+    # Skip supersedes suggestion when the operator already declared the link.
+    if not supersedes and (candidate := supersedes_candidate_hint(layers, source_file)):
+        typer.echo(candidate, err=True)
 
 
 # --- scan -----------------------------------------------------------------
