@@ -6,7 +6,7 @@ When Claude Code (or any consumer agent) writes code that touches regulated logi
 
 ## Status
 
-**Shipped end-to-end. Current version: 0.3.11.** Four phases merged to `main` and tagged:
+**Shipped end-to-end. Current version: 0.4.0.** Four phases merged to `main` and tagged:
 
 | Tag | What |
 |---|---|
@@ -29,8 +29,9 @@ When Claude Code (or any consumer agent) writes code that touches regulated logi
 | `v0.3.9` (patch) | **Pageindex wired into the consumer story** — closes the loop on the v0.3.8 hint so pageindex.json files actually pay off downstream. New CLI command `dks pageindex search "<keyword>"` walks every `<source>.pageindex.json` in active layers and returns `[{source, layer, title, path, block_ids}]` for nodes whose title matches (case-insensitive). Two consumers now use it: **(A) `dks-compile-wiki` Phase 0** narrows block selection to matching subtree(s) before full block-listing on long sources; **(B) `dks-search` auto-suggest** combines filename matching with pageindex tree-title matching when wiki has no hit. Both fall through gracefully when pageindex isn't built. |
 | `v0.3.10` (minor) | **PPTX parser via Docling.** New `src/dks/parsers/pptx.py` registered for `.pptx` in the parser dispatch. Slide titles (`label == "title"`) become section boundaries; bullets / body items attach via reused `DocxLocator` (slide-title-as-section is structurally identical to DOCX heading-as-section — no new locator type or BlockRef format). Docling already supports PPTX natively — no new top-level dependency. |
 | `v0.3.11` (patch) | **Re-ingest staleness hint.** New `wiki_stale_hint(layers, source_file)` in `src/dks/hints.py` wired into `dks ingest` after the existing pageindex hint: scans wiki entries across active layers, finds those whose `source_refs` include `block_id`s starting with the just-(re)ingested source, emits stderr HINT naming the slugs + citation counts. Closes the amendment-staleness gap for the common "re-ingest a previously wiki'd doc" case — wikis are frozen at compile time and silently rot unless re-compiled. |
+| `v0.4.0` (minor) | **Supersedes metadata + amendment-aware lint.** New `--supersedes <old-source>` flag on `dks ingest` (repeatable). Writes a `.meta.json` sidecar inside the normalized source directory with `{supersedes: [...], ingested_at: ...}`. New `dks meta superseded-by` CLI prints the inverse map (`{old_source: [{source, layer}, ...]}`). `dks blocks get` now emits a stderr `WARN` when the fetched block's source has been superseded, naming the successor(s). `dks-lint-wiki` skill prompt gains a new "Superseded source citations" category — wiki entries citing a still-cited-but-now-superseded source are flagged with the replacement source name. The pair (v0.3.11 + v0.4.0) closes the amendment story: re-ingest staleness covers same-filename reissues; supersedes metadata covers separate-amendment-doc workflows. |
 
-**Current version: 0.3.11.** 189 tests passing, 4 skipped (presidio absent in dev venv), mypy strict + ruff clean.
+**Current version: 0.4.0.** 201 tests passing, 4 skipped (presidio absent in dev venv), mypy strict + ruff clean.
 
 ---
 

@@ -745,3 +745,112 @@ def test_ingest_with_redact_pii_writes_redacted_blocks(tmp_path):
     assert "John Smith" not in content
     assert "alice@example.com" not in content
     assert "[REDACTED:" in content
+
+
+# --- supersedes (v0.4) ----------------------------------------------------
+
+def test_ingest_supersedes_writes_meta_sidecar(tmp_path):
+    project = tmp_path / "proj"
+    project.mkdir()
+    src = tmp_path / "raw" / "amendment.md"
+    src.parent.mkdir()
+    src.write_text("amended content\n")
+    res = _invoke(
+        ["--project", str(project), "--no-global",
+         "ingest", str(src), "--root", str(src.parent),
+         "--supersedes", "original.docx"],
+    )
+    assert res.exit_code == 0, res.output
+    assert "wrote supersedes metadata" in res.output
+    meta_path = project / "normalized" / "amendment.md" / ".meta.json"
+    assert meta_path.exists()
+    meta = json.loads(meta_path.read_text())
+    assert meta["supersedes"] == ["original.docx"]
+    assert meta["ingested_at"]
+
+
+def test_ingest_supersedes_accepts_multiple(tmp_path):
+    project = tmp_path / "proj"
+    project.mkdir()
+    src = tmp_path / "raw" / "amendment.md"
+    src.parent.mkdir()
+    src.write_text("amended content\n")
+    res = _invoke(
+        ["--project", str(project), "--no-global",
+         "ingest", str(src), "--root", str(src.parent),
+         "--supersedes", "old1.docx", "--supersedes", "old2.docx"],
+    )
+    assert res.exit_code == 0, res.output
+    meta = json.loads((project / "normalized" / "amendment.md" / ".meta.json").read_text())
+    assert sorted(meta["supersedes"]) == ["old1.docx", "old2.docx"]
+
+
+def test_meta_superseded_by_outputs_inverse_map(tmp_path):
+    project = tmp_path / "proj"
+    project.mkdir()
+    src = tmp_path / "raw" / "amendment.md"
+    src.parent.mkdir()
+    src.write_text("amended content\n")
+    _invoke(
+        ["--project", str(project), "--no-global",
+         "ingest", str(src), "--root", str(src.parent),
+         "--supersedes", "original.docx"],
+    )
+    res = _invoke(
+        ["--project", str(project), "--no-global",
+         "meta", "superseded-by"],
+    )
+    assert res.exit_code == 0, res.output
+    payload = json.loads(res.output[res.output.find("{"):])
+    assert "original.docx" in payload
+    assert payload["original.docx"] == [{"source": "amendment.md", "layer": "project"}]
+
+
+def test_blocks_get_warns_on_superseded_source(tmp_path):
+    """When fetching a block from a source that has been superseded, emit WARN."""
+    project = tmp_path / "proj"
+    project.mkdir()
+    # Ingest the old source first (no --supersedes)
+    old = tmp_path / "raw" / "original.md"
+    old.parent.mkdir()
+    old.write_text("original content\n")
+    _invoke(
+        ["--project", str(project), "--no-global",
+         "ingest", str(old), "--root", str(old.parent)],
+    )
+    # Ingest the new source that supersedes it
+    new = tmp_path / "raw" / "amendment.md"
+    new.write_text("amended content\n")
+    _invoke(
+        ["--project", str(project), "--no-global",
+         "ingest", str(new), "--root", str(new.parent),
+         "--supersedes", "original.md"],
+    )
+    # Fetch a block from the OLD source — should WARN
+    res = _invoke(
+        ["--project", str(project), "--no-global",
+         "blocks", "get", "original.md#L1-1"],
+    )
+    assert res.exit_code == 0, res.output
+    assert "WARN" in res.output
+    assert "superseded" in res.output.lower()
+    assert "amendment.md" in res.output
+
+
+def test_blocks_get_no_supersede_warn_for_active_source(tmp_path):
+    """A block from a source nobody has superseded should NOT trigger the WARN."""
+    project = tmp_path / "proj"
+    project.mkdir()
+    src = tmp_path / "raw" / "active.md"
+    src.parent.mkdir()
+    src.write_text("active content\n")
+    _invoke(
+        ["--project", str(project), "--no-global",
+         "ingest", str(src), "--root", str(src.parent)],
+    )
+    res = _invoke(
+        ["--project", str(project), "--no-global",
+         "blocks", "get", "active.md#L1-1"],
+    )
+    assert res.exit_code == 0, res.output
+    assert "superseded" not in res.output.lower()

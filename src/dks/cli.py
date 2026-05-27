@@ -19,6 +19,7 @@ from dks.parsers import get_parser
 from dks.scan import scan_text
 from dks.search import search_wiki
 from dks.store.blocks import BlockFetchResult, get_block, list_blocks
+from dks.store.meta import SourceMeta, compute_superseded_by, write_meta
 from dks.store.pageindex import read_pageindex, search_pageindex, write_pageindex
 from dks.store.wiki import WikiEntry, list_wiki_entries, read_wiki_entry, write_wiki_entry
 from dks.types import Classification, classification_rank
@@ -124,6 +125,17 @@ def ingest(
             "if your corpus contains real PII of those types."
         ),
     ),
+    supersedes: list[str] = typer.Option(  # noqa: B008
+        [],
+        "--supersedes",
+        help=(
+            "Source basename(s) this ingest supersedes. Repeatable: "
+            "--supersedes old1.docx --supersedes old2.docx. "
+            "Recorded in a .meta.json sidecar; dks blocks get on a superseded "
+            "block surfaces a WARN, and dks-lint-wiki flags wiki entries "
+            "citing superseded sources."
+        ),
+    ),
 ) -> None:
     """Parse, normalize, and persist a source document into the active write layer."""
     _reject_sensitive_global_write(classification, write_global)
@@ -192,6 +204,14 @@ def ingest(
         blocks = [b.model_copy(update={"redacted": True}) for b in blocks]
     written = write_blocks(blocks, write_layer)
     typer.echo(f"wrote {len(written)} blocks to {write_layer.normalized_dir}/{source_file}/")
+
+    if supersedes:
+        meta_path = write_meta(
+            write_layer,
+            source_file=source_file,
+            meta=SourceMeta(supersedes=list(supersedes)),
+        )
+        typer.echo(f"wrote supersedes metadata to {meta_path}")
 
     if hint := pageindex_hint(write_layer, source_file, blocks):
         typer.echo(hint, err=True)
@@ -291,6 +311,15 @@ def blocks_get(ctx: typer.Context, block_id: str = typer.Argument(...)) -> None:
             f"verify requester is authorized",
             err=True,
         )
+    superseded_by = compute_superseded_by(layers)
+    source_basename = Path(result.block.source_file).name
+    if source_basename in superseded_by:
+        successors = ", ".join(f"{s!r} @ {layer}" for s, layer in superseded_by[source_basename])
+        typer.echo(
+            f"WARN: block {block_id!r} is from source {source_basename!r} which has been "
+            f"superseded by {successors} — consider citing the successor instead",
+            err=True,
+        )
     shadows_payload = [
         {"layer": s.layer, "content_differs": s.content_differs} for s in result.shadows
     ]
@@ -349,6 +378,29 @@ def pageindex_search(ctx: typer.Context, query: str = typer.Argument(...)) -> No
     layers = _layers(ctx)
     hits = search_pageindex(layers, query)
     typer.echo(json.dumps([h.model_dump() for h in hits], indent=2))
+
+
+# --- meta -----------------------------------------------------------------
+
+meta_app = typer.Typer(no_args_is_help=True, help="Inspect per-source metadata.")
+app.add_typer(meta_app, name="meta")
+
+
+@meta_app.command("superseded-by")
+def meta_superseded_by(ctx: typer.Context) -> None:
+    """Print the inverse supersedes map (old_source → list of [new_source, layer]).
+
+    Walks every `.meta.json` sidecar in active layers and inverts each `supersedes`
+    list. Sources with no meta, or empty supersedes, contribute nothing. Output
+    is JSON: `{"old.docx": [{"source": "new.docx", "layer": "global"}, ...]}`.
+    """
+    layers = _layers(ctx)
+    inv = compute_superseded_by(layers)
+    payload = {
+        old: [{"source": s, "layer": layer} for s, layer in pairs]
+        for old, pairs in inv.items()
+    }
+    typer.echo(json.dumps(payload, indent=2))
 
 
 # --- wiki -----------------------------------------------------------------

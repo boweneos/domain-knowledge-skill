@@ -42,6 +42,7 @@ Lint is a corpus-wide audit pass. Run it after a re-ingest, on a schedule, or be
    - **Cross-layer citations:** when fetching the block (for classification or divergent-shadow checks below), inspect `.layer` in the returned JSON. If the entry's layer is `project` but the block's layer is `global`, record as a **cross-layer citation** (informational).
    - **Divergent shadows:** for citations where the cited source has blocks in both project and global layers (visible by running `dks blocks list <source>` in both layer modes — or simply check `.shadows[*].content_differs` from a single `dks blocks get`), record any shadow with `content_differs: true` as a **divergent shadow**. The CLI also emits a `WARN:` line for these.
    - **Classification leak:** fetch each unique cited block once via `dks blocks get` to read `.classification`. Compute `max_cited` of these (order: `public < internal < confidential < restricted`). If the entry's own classification is less strict than `max_cited`, record as a **classification leak**.
+   - **Superseded source citations (since v0.4):** run `dks meta superseded-by` once at the start to get the inverse map `{old_source: [{source, layer}, ...]}`. For each `block_id` in an entry's `source_refs`, extract its source basename (the part before the first `#`). If that basename appears as a key in the superseded-by map, record as a **superseded source citation** — name the successor source(s) so the operator can re-compile against them.
 
 4. **Cross-entry contradiction scan.** Read each entry's body. Flag any pair of entries that make directly opposing factual claims on the same narrow topic (e.g., entry A says "30 days" and entry B says "60 days" without versioning context). Be conservative — only flag direct, factual conflicts. Same word ≠ contradiction.
 
@@ -70,6 +71,9 @@ Lint is a corpus-wide audit pass. Run it after a re-ingest, on a schedule, or be
    ### Classification leaks
    - (project) entry `<slug>` classified `<entry_class>` cites <N> blocks at `<higher_class>` — reclassify or remove cited material
 
+   ### Superseded source citations
+   - (global) entry `<slug>` cites <N> blocks from `<old_source>`, which has been superseded by `<new_source>` @ <layer> — re-compile this entry against `<new_source>` to incorporate the amendment
+
    ### Possible contradictions
    - (project) `<slug-a>` says "<claim>" [<id> @ project] but (global) `<slug-b>` says "<other>" [<id> @ global] — same topic area
 
@@ -80,6 +84,7 @@ Lint is a corpus-wide audit pass. Run it after a re-ingest, on a schedule, or be
    - Z cross-layer citations
    - V divergent shadows
    - W classification leaks
+   - S superseded source citations
    - W possible contradictions
    ```
 
