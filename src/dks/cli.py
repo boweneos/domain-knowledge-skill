@@ -12,7 +12,7 @@ from typing import Any
 
 import typer
 
-from dks.hints import pageindex_hint
+from dks.hints import pageindex_hint, wiki_stale_hint
 from dks.layers import KbLayer, KbLayers, resolve_layers
 from dks.normalizer import normalize
 from dks.parsers import get_parser
@@ -195,6 +195,9 @@ def ingest(
 
     if hint := pageindex_hint(write_layer, source_file, blocks):
         typer.echo(hint, err=True)
+
+    if stale := wiki_stale_hint(layers, source_file):
+        typer.echo(stale, err=True)
 
 
 # --- scan -----------------------------------------------------------------

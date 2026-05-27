@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Final
 
 from dks.block import NormalizedBlock
-from dks.layers import KbLayer
+from dks.layers import KbLayer, KbLayers
 from dks.locators import DocxLocator, ExcelLocator, Locator, MarkdownLocator, PdfLocator
 
 _DEFAULT_BLOCKS_THRESHOLD: Final[int] = 80
@@ -69,3 +69,38 @@ def pageindex_hint(
         f"HINT: {source_file}: {n_blocks} blocks across {n_sections} sections — "
         f"consider running the dks-build-pageindex skill for navigation"
     )
+
+
+def wiki_stale_hint(layers: KbLayers, source_file: str) -> str | None:
+    """Advise the operator to re-compile wiki entries that cite a just-ingested source.
+
+    After a re-ingest, any wiki entry that pinned `block_ids` to this source has
+    body content frozen at its compile time — its quoted material may diverge
+    from the now-current block content. This hint names which entries to
+    consider re-compiling. Returns None if no wiki entries reference the source.
+    """
+    from dks.store.wiki import list_wiki_entries, read_wiki_entry
+
+    stale: list[tuple[str, str, int]] = []
+    prefix = source_file + "#"
+
+    for hit in list_wiki_entries(layers):
+        try:
+            entry, layer_name = read_wiki_entry(layers, hit.slug)
+        except (FileNotFoundError, ValueError, OSError):
+            continue
+        citations = sum(1 for ref in entry.source_refs if ref.startswith(prefix))
+        if citations:
+            stale.append((hit.slug, layer_name, citations))
+
+    if not stale:
+        return None
+
+    lines = [f"HINT: re-ingested {source_file!r} is cited by {len(stale)} wiki entry(s):"]
+    for slug, layer_name, count in stale:
+        lines.append(f"  - {slug} @ {layer_name} ({count} citations from this source)")
+    lines.append(
+        "  Re-compile to incorporate any amendments — "
+        "wiki content is frozen at compile time."
+    )
+    return "\n".join(lines)

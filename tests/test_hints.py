@@ -1,9 +1,10 @@
 from pathlib import Path
 
 from dks.block import NormalizedBlock
-from dks.hints import pageindex_hint
-from dks.layers import KbLayer
+from dks.hints import pageindex_hint, wiki_stale_hint
+from dks.layers import KbLayer, KbLayers
 from dks.locators import DocxLocator, MarkdownLocator, PdfLocator
+from dks.store.wiki import WikiEntry, write_wiki_entry
 
 
 def _docx_block(section: str, idx: int) -> NormalizedBlock:
@@ -110,3 +111,61 @@ def test_markdown_heading_path_counts_as_section(tmp_path):
     ]
     hint = pageindex_hint(layer, "x.md", blocks)
     assert hint is not None
+
+
+# --- wiki_stale_hint ----------------------------------------------------
+
+
+def _make_entry(slug: str, source_refs: list[str]) -> WikiEntry:
+    return WikiEntry(topic=f"Topic {slug}", slug=slug, source_refs=source_refs, body="x")
+
+
+def test_wiki_stale_hint_none_when_no_entries(tmp_path):
+    layers = KbLayers(project=KbLayer(name="project", base=tmp_path / "p"), global_layer=None)
+    assert wiki_stale_hint(layers, "x.docx") is None
+
+
+def test_wiki_stale_hint_none_when_no_entry_cites_source(tmp_path):
+    proj = KbLayer(name="project", base=tmp_path / "p")
+    layers = KbLayers(project=proj, global_layer=None)
+    write_wiki_entry(proj, _make_entry("unrelated", ["other.docx#§body#p1"]))
+    assert wiki_stale_hint(layers, "x.docx") is None
+
+
+def test_wiki_stale_hint_fires_for_citing_entry(tmp_path):
+    proj = KbLayer(name="project", base=tmp_path / "p")
+    layers = KbLayers(project=proj, global_layer=None)
+    write_wiki_entry(
+        proj,
+        _make_entry("cancer-rules", ["cancer.docx#§body#p1", "cancer.docx#§body#p2"]),
+    )
+    hint = wiki_stale_hint(layers, "cancer.docx")
+    assert hint is not None
+    assert "cancer-rules" in hint
+    assert "@ project" in hint
+    assert "2 citations" in hint
+    assert "re-compile" in hint.lower()
+
+
+def test_wiki_stale_hint_lists_multiple_entries_across_layers(tmp_path):
+    proj = KbLayer(name="project", base=tmp_path / "p")
+    glb = KbLayer(name="global", base=tmp_path / "g")
+    layers = KbLayers(project=proj, global_layer=glb)
+    write_wiki_entry(proj, _make_entry("project-entry", ["amend.docx#§body#p1"]))
+    write_wiki_entry(
+        glb,
+        _make_entry("global-entry", ["amend.docx#§body#p2", "amend.docx#§body#p3"]),
+    )
+    hint = wiki_stale_hint(layers, "amend.docx")
+    assert hint is not None
+    assert "2 wiki entry(s)" in hint
+    assert "project-entry @ project" in hint
+    assert "global-entry @ global" in hint
+
+
+def test_wiki_stale_hint_exact_source_match_not_prefix_collision(tmp_path):
+    """An entry citing 'cancer-long.docx' should NOT be flagged when ingesting 'cancer.docx'."""
+    proj = KbLayer(name="project", base=tmp_path / "p")
+    layers = KbLayers(project=proj, global_layer=None)
+    write_wiki_entry(proj, _make_entry("entry", ["cancer-long.docx#§body#p1"]))
+    assert wiki_stale_hint(layers, "cancer.docx") is None
