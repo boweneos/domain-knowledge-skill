@@ -2,11 +2,11 @@
 
 A citation-grounded knowledge skill for AI coding agents working in regulated life-insurance contexts.
 
-When Claude Code (or any consumer agent) writes code that touches regulated logic — PII handling, data retention, claim / underwriting / policy / product rules — every fact it relies on must trace back to a verifiable citation: file + page/section/clause for PDFs, sheet + cell range for Excels, paragraph index for DOCX, line range for Markdown. No uncited facts. The skill makes citation discipline structural, not optional.
+When Claude Code (or any consumer agent) writes code that touches regulated logic — PII handling, data retention, claim / underwriting / policy / product rules — every fact it relies on must trace back to a verifiable citation: file + page/section/clause for PDFs, sheet + cell range for Excels, paragraph index for DOCX and PPTX (slide title as section), line range for Markdown. No uncited facts. The skill makes citation discipline structural, not optional.
 
 ## Status
 
-**Shipped end-to-end. Current version: 0.3.7.** Four phases merged to `main` and tagged:
+**Shipped end-to-end. Current version: 0.3.10.** Four phases merged to `main` and tagged:
 
 | Tag | What |
 |---|---|
@@ -25,8 +25,11 @@ When Claude Code (or any consumer agent) writes code that touches regulated logi
 | `v0.3.5` (minor) | **Tuned Presidio default entity list + `--redact-entities` flag.** Real measurement on a 43-doc Encompass corpus showed Presidio's all-entities default over-fires on DATE_TIME (durations: "12 months"), LOCATION (internal acronyms: MLC/NEOS/URE), and US_DRIVER_LICENSE (version numbers: "1.0"). New default (`DEFAULT_REDACT_ENTITIES`): PERSON, EMAIL_ADDRESS, PHONE_NUMBER, AU_TFN, AU_MEDICARE, AU_ABN, CREDIT_CARD, IBAN_CODE. `--redact-entities all` reverts to full Presidio coverage; `--redact-entities A,B,C` uses a custom list. |
 | `v0.3.6` (patch) | **`dks-lint-wiki` skill prompt: bulk-pattern hint.** Real-world finding from compiling 4 wiki entries on the Encompass corpus — the lint procedure was inadvertently recommending per-id `dks blocks get` for citation checks, hitting the exact subprocess-startup trap v0.3.4's `--with-content` was meant to fix (86 citations × ~1.5s startup = >2 min). Skill prompt updated to lead with the bulk pattern (`dks wiki list --with-content` + `dks blocks list <source>` per cited source + set-membership check). |
 | `v0.3.7` (patch) | **`dks-search` skill prompt: auto-suggest on empty wiki results.** Before abstaining when `dks wiki search` returns no hit, the skill now lists the active layers' `normalized/` directories and proposes any source whose filename matches the query keywords. Compile-on-demand stays operator-gated — auto-suggest tells you WHICH source to compile from; the actual `dks-compile-wiki` invocation still goes through you. |
+| `v0.3.8` (patch) | **Ingest-time pageindex hint.** New `src/dks/hints.py → pageindex_hint()` wired into `dks ingest`: emits a stderr HINT after a successful write when a source is structurally large (`n_blocks >= 80` OR `n_distinct_sections >= 8`) AND no `<source>.pageindex.json` already exists in the write layer. Env-overridable via `DKS_PAGEINDEX_HINT_BLOCKS` / `DKS_PAGEINDEX_HINT_SECTIONS`. Headerless PDFs trip only via block count, not section count, by design. |
+| `v0.3.9` (patch) | **Pageindex wired into the consumer story** — closes the loop on the v0.3.8 hint so pageindex.json files actually pay off downstream. New CLI command `dks pageindex search "<keyword>"` walks every `<source>.pageindex.json` in active layers and returns `[{source, layer, title, path, block_ids}]` for nodes whose title matches (case-insensitive). Two consumers now use it: **(A) `dks-compile-wiki` Phase 0** narrows block selection to matching subtree(s) before full block-listing on long sources; **(B) `dks-search` auto-suggest** combines filename matching with pageindex tree-title matching when wiki has no hit. Both fall through gracefully when pageindex isn't built. |
+| `v0.3.10` (minor) | **PPTX parser via Docling.** New `src/dks/parsers/pptx.py` registered for `.pptx` in the parser dispatch. Slide titles (`label == "title"`) become section boundaries; bullets / body items attach via reused `DocxLocator` (slide-title-as-section is structurally identical to DOCX heading-as-section — no new locator type or BlockRef format). Docling already supports PPTX natively — no new top-level dependency. |
 
-**Current version: 0.3.7.** 163 tests passing, 4 skipped (presidio absent in dev venv), mypy strict + ruff clean.
+**Current version: 0.3.10.** 184 tests passing, 4 skipped (presidio absent in dev venv), mypy strict + ruff clean.
 
 ---
 
@@ -85,7 +88,8 @@ Once `wiki/` has entries, any future Claude Code session has two paths in:
    ┌─────────────┐    dks ingest    ┌──────────────┐
    │   raw/      │ ───────────────▶ │ normalized/  │  citation-preserving
    │ PDF/DOCX/   │                  │  blocks (md  │  Markdown blocks
-   │ XLSX/MD     │                  │  + frontmatter)
+   │ PPTX/XLSX/  │                  │  + frontmatter)
+   │ MD          │
    └─────────────┘                  └──────────────┘
                                           │  │
                           ┌───────────────┘  └────────────┐
