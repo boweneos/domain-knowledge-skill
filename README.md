@@ -6,7 +6,7 @@ When Claude Code (or any consumer agent) writes code that touches regulated logi
 
 ## Status
 
-**Shipped end-to-end. Current version: 0.4.1.** Four phases merged to `main` and tagged:
+**Shipped end-to-end. Current version: 0.4.2.** Four phases merged to `main` and tagged:
 
 | Tag | What |
 |---|---|
@@ -31,8 +31,9 @@ When Claude Code (or any consumer agent) writes code that touches regulated logi
 | `v0.3.11` (patch) | **Re-ingest staleness hint.** New `wiki_stale_hint(layers, source_file)` in `src/dks/hints.py` wired into `dks ingest` after the existing pageindex hint: scans wiki entries across active layers, finds those whose `source_refs` include `block_id`s starting with the just-(re)ingested source, emits stderr HINT naming the slugs + citation counts. Closes the amendment-staleness gap for the common "re-ingest a previously wiki'd doc" case — wikis are frozen at compile time and silently rot unless re-compiled. |
 | `v0.4.0` (minor) | **Supersedes metadata + amendment-aware lint.** New `--supersedes <old-source>` flag on `dks ingest` (repeatable). Writes a `.meta.json` sidecar inside the normalized source directory with `{supersedes: [...], ingested_at: ...}`. New `dks meta superseded-by` CLI prints the inverse map (`{old_source: [{source, layer}, ...]}`). `dks blocks get` now emits a stderr `WARN` when the fetched block's source has been superseded, naming the successor(s). `dks-lint-wiki` skill prompt gains a new "Superseded source citations" category — wiki entries citing a still-cited-but-now-superseded source are flagged with the replacement source name. The pair (v0.3.11 + v0.4.0) closes the amendment story: re-ingest staleness covers same-filename reissues; supersedes metadata covers separate-amendment-doc workflows. |
 | `v0.4.1` (patch) | **Ingest-time supersedes candidate hint.** New `supersedes_candidate_hint(layers, source_file)` in `src/dks/hints.py` wired into `dks ingest` (suppressed when operator already passes `--supersedes`). Compares the new source's stem-name (after stripping common version / amendment / year / disambiguator suffixes: `v\d+`, `\d{4}`, `amendment`, `final/draft/copy/revised`, `(N)`) against existing sources across active layers via `difflib.SequenceMatcher`. Emits stderr HINT listing candidates above the similarity threshold (default 0.85, env-overridable via `DKS_SUPERSEDES_SIMILARITY_THRESHOLD`). **Detection only — never auto-writes the supersedes link.** Operator stays accountable for declaring the relationship. |
+| `v0.4.2` (patch) | **MSG + XLSM parser support.** `.xlsm` (Excel macro-enabled) registered to the existing openpyxl-backed parser. New `src/dks/parsers/msg.py` parses Outlook `.msg` files via the `extract-msg` library: subject becomes a heading; From/To/Cc/Date become a single text block; body splits into paragraph-level blocks. All items share a `DocxLocator` with subject as section (no new locator type). Real-world surfaced when ingesting a 64-doc Neos corpus that mixed Outlook emails and macro-enabled spreadsheets. |
 
-**Current version: 0.4.1.** 216 tests passing, 4 skipped (presidio absent in dev venv), mypy strict + ruff clean.
+**Current version: 0.4.2.** 222 tests passing, 4 skipped (presidio absent in dev venv), mypy strict + ruff clean.
 
 ---
 
@@ -92,7 +93,7 @@ Once `wiki/` has entries, any future Claude Code session has two paths in:
    │   raw/      │ ───────────────▶ │ normalized/  │  citation-preserving
    │ PDF/DOCX/   │                  │  blocks (md  │  Markdown blocks
    │ PPTX/XLSX/  │                  │  + frontmatter)
-   │ MD          │
+   │ XLSM/MSG/MD │
    └─────────────┘                  └──────────────┘
                                           │  │
                           ┌───────────────┘  └────────────┐
